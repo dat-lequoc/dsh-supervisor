@@ -5,8 +5,9 @@ DeepSeek Harness (DSH) agent presets + reusable Cordis plugins. Portable: point 
 workspace; all state lives in a relative `.agi/` directory there.
 
 Status: design locked after three interview rounds (decisions Q1–Q23, log at bottom),
-then **amended after verifying the harness** (amendments A1–A6, §13): the feasibility
-spike is resolved on paper — DSH natively ships most of the supervision loop.
+then **amended after verifying the harness** (amendments A1–A6, §13), then **simplified
+after user review** (simplifications S1–S4, §14). The feasibility spike is resolved on
+paper — DSH natively ships most of the supervision loop.
 Next step: build per `IMPLEMENTATION_PLAN.md` (M0 smoke test first).
 
 ---
@@ -19,7 +20,8 @@ Next step: build per `IMPLEMENTATION_PLAN.md` (M0 smoke test first).
   waiting on a human except at the goal-confirmation gate.
 - **Dev Agent** — a generic worker with full tool access, personalized per spawn: the
   Main Agent authors each child's **role persona** (browser operator, researcher,
-  implementer, …) and a role brief file. Multiple may run in parallel (default 1). It
+  implementer, …) and a complete, self-contained task — both travel in the spawn call;
+  there are no brief files (S4). Multiple may run in parallel (default 1). It
   installs whatever task tooling it needs at runtime (e.g. Playwright); no task tools
   are pre-built. Realized as the custom `spawn_agent` tool in the `agi-spawn` host
   plugin (A6).
@@ -31,8 +33,8 @@ Next step: build per `IMPLEMENTATION_PLAN.md` (M0 smoke test first).
 
 | Piece | Kind | Notes |
 |---|---|---|
-| `main-agent` | agent preset | persona, wake ritual, supervision protocol |
-| Dev Agent | `agi-spawn` host plugin (`spawn_agent` tool) | per-spawn role persona authored by the Main Agent; model read live from `config.json` (A6) |
+| `main-agent` | agent preset | persona, supervision protocol |
+| Dev Agent | `agi-spawn` host plugin (`spawn_agent` tool) | per-spawn role persona authored by the Main Agent; model + parallel limit in its row config (A6, S2, S3) |
 | `tool-delay` | host plugin | deterministic delay between tool calls |
 | `subagent-trace` | host plugin | auto-captures subagent activity to `trace.log` |
 | `wait_for_agents` | host plugin (tool) | the sleep/wake primitive (the one custom loop piece — A5) |
@@ -49,9 +51,10 @@ edited; authored presets live in their own directories under `.agent-presets/`.
 
 ### 3.1 Lifecycle
 One long-lived session (Q1a). No special context machinery for v1 (Q12): normal
-compaction suffices because everything important is already externalized to `.agi/`.
-On every wake it consults `GOAL.md` / `NOTES.md` / `progress.jsonl` / subagent files as
-needed. A crash or restart loses nothing: a fresh session rehydrates from `.agi/`.
+compaction suffices. No mandated wake ritual (S1): native session persistence is the
+memory across restarts — a crash or restart resumes the session as-is. `.agi/` (goal,
+notes, progress, subagent artifacts) remains the durable, human-inspectable record;
+the agent consults and updates it as the work demands, not by ritual.
 
 ### 3.2 Sleep/wake loop (the heart of the system)
 Driven by the `wait_for_agents` tool (Q11, Q21):
@@ -89,7 +92,7 @@ cheapest loop that still supervises. Note (A5): continuable children are *not* j
 
 ### 3.4 Self-evolution (Q4)
 Allowed to modify, on its own:
-- its `.agi/` state files and role briefs/personas (trivially);
+- its `.agi/` state files and role personas (trivially);
 - its **own preset** and the **`agi-spawn` plugin** (add tools, rewrite subagent setup
   instructions and default persona fragments, tune prompt sections);
 - **dynamic Cordis plugins** at runtime (new tools/UI; temporary until persisted into a
@@ -127,8 +130,12 @@ cookies, accounts — see §9).
   `spawn_agent(description, role, persona, prompt)`, a thin wrapper over
   `ctx.subagents.startContinuable()`.
 - **Per-spawn personalization:** the Main Agent authors each child's persona at spawn
-  time; `brief.md` (template §7.2) carries the task detail. Persona says who the child
-  *is*; the brief says what it must *do*.
+  time; the `prompt` argument carries the complete, self-contained task (S4),
+  structured per §7.2. Persona says who the child *is*; the task says what it must *do*.
+- **Parallel limit enforced by the tool (S3):** `spawn_agent` counts running children
+  and rejects the call with a clear error at `maxParallelSubagents`. The limit is also
+  injected into the tool's description at mount, so the agent knows it up front — but
+  the tool, not the persona, is the enforcement.
 - Full tools/MCPs/skills. Installs additional tooling at runtime as the task demands.
 - **Stays focused on the task**: no self-logging duty — the `subagent-trace` plugin
   captures its activity automatically (Q13b), so a confused subagent can't "forget" to
@@ -140,10 +147,10 @@ cookies, accounts — see §9).
   no fork needed.
 - On completion it writes `outcome.md` (what it did, what it verified, what remains),
   then reports a one-paragraph summary.
-- **Model:** `subagentModel` is read live from `.agi/config.json` by `agi-spawn` at each
-  spawn (A6) — still user-only per Q16, and better than the earlier preset-row
-  placement: retuning no longer needs a session remount.
-- Pacing is deliberately absent from briefs — the delay plugin enforces it; briefs never
+- **Model:** `subagentModel` is set in the `agi-spawn` row config (S2) — user-owned;
+  the agent may propose changes, the user edits the composition. The row lives in the
+  live-watched profile patch layer, so a change still applies without a session remount.
+- Pacing is deliberately absent from tasks — the delay plugin enforces it; tasks never
   repeat what infrastructure guarantees.
 
 ## 5. Supervision & steering (Q5, Q6, Q15, Q22 — amended A1/A2)
@@ -152,13 +159,13 @@ Exactly three verbs, each writing a `CHANGELOG.jsonl` entry:
 
 | Verb | Mechanics |
 |---|---|
-| **spawn** | write `subagents/<run-id>/brief.md`, then `spawn_agent` with the role persona (continuable background child; returns a durable child id) |
+| **spawn** | `spawn_agent` with the role persona and a complete, self-contained task (S4) — continuable background child; returns a durable child id. Rejected with a clear error at the parallel limit (S3). |
 | **kill** | native `interrupt_agent` + no further messages (A2): the current turn stops and an unmessaged child burns zero tokens. `job_kill` covers one-shot background children. The kill-reliability hard requirement is satisfied natively. |
 | **steer** | native `send_message` (A1): queues the correction as the running child's next turn — the exact Q15 wording, shipped. Prepend `interrupt_agent` only when the current turn must stop *now*. Also how blocked questions are answered. |
 
 Native DSH mechanics only (per Q22) — and better than the planned kill+fork fallback:
 mid-flight message injection is shipped. Kill + respawn-*fresh* (new spawn, revised
-brief and persona) remains the fallback when the child's context itself is poisoned.
+task and persona) remains the fallback when the child's context itself is poisoned.
 
 **Trace capture (Q13b):** the `subagent-trace` host plugin taps the native
 `session/event` firehose (A5) and appends every tool call + result summary to
@@ -168,15 +175,13 @@ in §3.2 and feeds the Subagents Tab.
 ## 6. Meta-configuration (Q7, Q16)
 
 `.agi/config.json` — **user-only**. The Main Agent may propose changes as questions but
-never edits it. Applies to both Main and Dev Agents. Read live: every sleep/spawn
-re-reads it, so the user can retune a running system without restarting anything.
+never edits it. Read live: every sleep re-reads it, so the user can retune a running
+system without restarting anything.
 
 ```json
 {
   "toolDelaySeconds": 2,
   "wakeMinutes": 5,
-  "maxParallelSubagents": 1,
-  "subagentModel": "<model-id>",
   "questionWaitMinutes": 5
 }
 ```
@@ -186,11 +191,13 @@ re-reads it, so the user can retune a running system without restarting anything
   rate limits / cost explosion; **removed once the system is proven** (kept simplistic
   on purpose — no per-preset overrides, no budgets).
 - `wakeMinutes` — the `wait_for_agents` timeout (§3.2).
-- `maxParallelSubagents` — default 1; the Main Agent must handle >1 (multiple live
-  child ids, interleaved settle notices). Checked against `list_agents` before spawning.
-- `subagentModel` — set by the user; read live from this file by `agi-spawn` at each
-  spawn (A6), so a change applies to the very next spawn with no remount.
 - `questionWaitMinutes` — patience window before a question is stacked as `assumed`.
+
+`maxParallelSubagents` and `subagentModel` are **not** here: they live in the
+`agi-spawn` row config (S2, S3) — still user-owned (the agent proposes, the user edits
+the composition). The parallel limit is enforced by `spawn_agent` itself and stated in
+its description. The Main Agent must still handle >1 children (multiple live child ids,
+interleaved settle notices) when the user raises the limit.
 
 ## 7. State directory `.agi/` (Q2c, Q23)
 
@@ -212,12 +219,14 @@ merely reads and serves them to the UI.
   CHANGELOG.jsonl          # every self-evolution + steering action (§7.3)
   subagents/
     <run-id>/
-      brief.md             # role brief the run was spawned with
       trace.log            # automatic capture (subagent-trace plugin)
       outcome.md           # final report, or blocked-question payload
 ```
 
-### 7.2 Brief template (`brief.md`)
+### 7.2 Task structure (the `spawn_agent` prompt) (S4)
+
+The same structure v1 kept in a per-run `brief.md`, now carried entirely in the spawn
+call — no file:
 
 ```markdown
 # Role
@@ -235,8 +244,8 @@ Pointers to relevant files/URLs/prior outcomes — not prose dumps.
 # Protocol
 - Blocked on info only the supervisor/user has → call the report tool with the
   precise question, then stop; the answer arrives as your next turn (A4).
-- On completion → write outcome.md (done / verified / remaining), then report
-  a one-paragraph summary.
+- On completion → write outcome.md (done / verified / remaining) under
+  .agi/subagents/<run-id>/, then report a one-paragraph summary.
 
 # Constraints
 Task-specific rules (e.g. "draft, never post without confirmation").
@@ -268,10 +277,10 @@ directly).
   `progress.jsonl` (Main Agent summaries and key ideas, so the user always has the
   high-level picture), (3) question stack — `pending` and `assumed` shown prominently.
 - **Subagents Tab:** one stable tab (not per-run tabs — they'd pile up on a 24/7
-  system): run list with live runs pinned on top; detail pane with status, brief, live
-  trace tail, and kill/steer buttons. Child sessions are ordinary sessions in the Web
-  GUI (A5), so each run links to its native session view for the full trajectory;
-  `trace.log` remains the grep-able summary surface.
+  system): run list with live runs pinned on top; detail pane with status, the spawn
+  task, live trace tail, and kill/steer buttons. Child sessions are ordinary sessions
+  in the Web GUI (A5), so each run links to its native session view for the full
+  trajectory; `trace.log` remains the grep-able summary surface.
 
 ## 9. First test: X.com growth automation
 
@@ -279,11 +288,11 @@ A deliberately open-ended long-horizon exercise. The agent acts on the user's be
 
 1. User gives full instructions → goal ceremony (§3.5). During planning the Main Agent
    asks the user for credentials / cookies / anything only the user can provide.
-2. Main Agent spawns a Dev Agent with a browser-operator persona and an automation
-   brief. The subagent sets up its own tooling at runtime (e.g. Playwright) and runs a
-   multimodal loop: screen → action → new screen → …
+2. Main Agent spawns a Dev Agent with a browser-operator persona and a complete
+   automation task. The subagent sets up its own tooling at runtime (e.g. Playwright)
+   and runs a multimodal loop: screen → action → new screen → …
 3. Main Agent supervises on the §3.2 loop: wake every `wakeMinutes`, check the trace,
-   steer or evolve the setup (better tools, revised persona/brief) as it learns what
+   steer or evolve the setup (better tools, revised persona/task) as it learns what
    works.
 4. Milestones: first 10 followers, then 100 — via posting / reposting / sharing
    strategies.
@@ -309,8 +318,8 @@ All five spike questions are answered natively by the harness (sources in
 | # | Deliverable | Kind |
 |---|---|---|
 | 0 | M0 smoke test of the native loop (§10) | spike |
-| 1 | `main-agent` preset (persona, wake ritual, supervision protocol) | agent preset |
-| 2 | `agi-spawn` host plugin (`spawn_agent` = the Dev Agent, A6) | plugin |
+| 1 | `main-agent` preset (persona, supervision protocol) | agent preset |
+| 2 | `agi-spawn` host plugin (`spawn_agent` = the Dev Agent, A6; limit enforcement S3) | plugin |
 | 3 | schedule overlay rows (question-patience timer) | shipped rows |
 | 4 | `tool-delay` host plugin | plugin |
 | 5 | `subagent-trace` host plugin | plugin |
@@ -354,6 +363,9 @@ Milestone detail, code skeletons, and verification steps live in
 | Q22 | follow DSH natives — *amended A1/A2: steer = `send_message`, kill = `interrupt_agent` + silence; kill reliability native* |
 | Q23 | state in relative `.agi/` per workspace — portable to any repo |
 
+Entries above are the historical record; where a §14 simplification conflicts with one
+(e.g. Q10's config placement), §14 wins.
+
 ## 13. Amendments after harness verification
 
 Checked against the DSH checkout (`/root/deepseek-harness`, dsh 0.1.0-rc.7); exact
@@ -368,8 +380,19 @@ personalization.
 | A3 | Q3/§2/§4 | No second preset. In-process children share the parent's composition; the Dev Agent's specialization travels with the spawn call instead. (First realized as a shipped `spawn_dev_agent` delegation row; that placement is superseded by A6.) |
 | A4 | Q14/§4/§7.2 | Continuable children natively carry a `report` tool with wakeup delivery: a blocked child reports its question and stops; the parent answers via `send_message`. The end-run-blocked + fork-resume dance is deleted. |
 | A5 | §10 spike | The feasibility spike is resolved by documentation plus one M0 smoke test: settle notices, mid-flight steering, kill, the `session/event` tap, and per-child session views in the GUI are all native. Only `wait_for_agents` remains custom (continuable children are not jobs, so `job_output(wait)` cannot substitute). |
-| A6 | A3/Q10/§4 | Per-spawn personalization. The shipped `tool-subagent` row fixes one persona per composition row, but the underlying `ctx.subagents` service accepts persona and tool filter per request, and the child descriptor snapshots them for cold resume. The Dev Agent is therefore the custom `agi-spawn` host plugin: a `spawn_agent(description, role, persona, prompt)` tool wrapping `startContinuable()`. The Main Agent authors each child's persona; `subagentModel` is read live from `.agi/config.json` at each spawn — still user-only, now with no session remount. |
+| A6 | A3/Q10/§4 | Per-spawn personalization. The shipped `tool-subagent` row fixes one persona per composition row, but the underlying `ctx.subagents` service accepts persona and tool filter per request, and the child descriptor snapshots them for cold resume. The Dev Agent is therefore the custom `agi-spawn` host plugin: a `spawn_agent(description, role, persona, prompt)` tool wrapping `startContinuable()`. The Main Agent authors each child's persona; model placement is superseded by S2. |
 
-Unchanged by verification: the `.agi/` state model and all file formats (§7), question
-lifecycle (§7.4), goal ceremony (§3.5), meta-config ownership (§6), self-evolution
-rules (§3.4), and the UI scope (§8).
+## 14. Simplifications after user review
+
+Targeted cuts only — everything else in this document stands as designed.
+
+| S | Supersedes | Simplification |
+|---|---|---|
+| S1 | §2/§3.1 wake ritual | No mandated wake ritual. Native session persistence is the memory across restarts; `.agi/` files remain the durable record, consulted and updated as the work demands rather than by a read-on-wake / write-before-sleep ritual. |
+| S2 | Q10/A6/§6 | `subagentModel` lives in the `agi-spawn` row config, not `.agi/config.json` — still user-only; the agent proposes, the user edits the composition. The row sits in the live-watched profile patch layer, so changes apply without a remount. |
+| S3 | §6 `maxParallelSubagents` | The parallel limit is enforced by `spawn_agent` itself: hard reject with a clear error at the limit, limit injected into the tool description at mount, configured on the same `agi-spawn` row. The persona no longer carries the check. |
+| S4 | §7.1/§7.2 `brief.md` | No brief files. The role persona and a complete, self-contained task travel in the spawn call; §7.2 now describes the task text's structure. `trace.log` and `outcome.md` remain per run. |
+
+Unchanged by review: the rest of the `.agi/` state model and file formats (§7),
+question lifecycle (§7.4), goal ceremony (§3.5), `config.json` ownership (§6),
+self-evolution rules (§3.4), supervision verbs (§5), and the UI scope (§8).
