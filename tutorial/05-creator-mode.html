@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5 · Creator mode and the Cordis toolset — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part I · Chapter 5</span>
+  <span class="spacer"></span>
+  <a href="04-lab.html">←</a>
+  <a href="06-preset.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part I — Foundations</p>
+  <h1>Creator mode and the Cordis toolset</h1>
+  <p class="lede">The harness can read and modify itself while it runs — through an agent. This
+  chapter introduces the <code>cordis</code> preset (“创造模式”, Creator mode), walks the seven
+  <code>cordis_*</code> tools it carries, and has you define, run, and remove your first live plugin.
+  Chapter 6 then uses this mode to author your supervisor’s preset.</p>
+</header>
+
+<h2>What Creator mode is</h2>
+<p>
+  <code>cordis</code> is the fourth shipped preset. Its own header explains its reason to exist better
+  than any summary:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/agent.cordis.yml (lines 1–12)</figcaption>
+<pre><code># The `cordis` agent preset: the standard coding agent, plus the ability to
+# read and write the runtime it is running in.
+#
+# It exists so a person can ask an agent to author another agent. Everything in
+# `standard` is here unchanged; what is added is the self-referential Cordis
+# toolset, a skill that teaches composition authoring, and a persona that says
+# which of the two planes an edit belongs to.
+#
+# TRUST: `cordis_mount` evaluates model-written JavaScript against the live
+# runtime, and a composition this agent writes becomes a preset other sessions
+# mount. Treat a session on this preset as shell access ...</code></pre>
+</figure>
+<p>
+  “A person can ask an agent to author another agent” — that is precisely your chapter 6. The
+  preset = <code>standard</code> + three additions:
+</p>
+<ul>
+  <li>the row <code>tool-cordis</code> (package <code>@deepseek-ai/dsh-tool-cordis</code>) — the toolset;</li>
+  <li>two bundled skills: <code>editing-cordis-compositions</code> (preset authoring) and
+      <code>cordis-plugin-development</code> (dynamic plugins);</li>
+  <li>a persona that teaches the two-plane rule and forbids editing shipped presets.</li>
+</ul>
+
+<div class="box warn">
+  <span class="box-title">A docs-drift warning you need before anything else</span>
+  <p>
+    The comment above says <code>cordis_mount</code>, and the <code>editing-cordis-compositions</code> skill
+    still teaches verbs called <code>cordis_inspect</code> / <code>cordis_mount</code> / <code>cordis_unmount</code>.
+    <strong>Those tools no longer exist.</strong> The live toolset — read it from the source of truth,
+    <code>packages/extensions/tool-cordis/src/index.ts</code> — registers seven tools with a
+    define/run lifecycle instead. The skill’s <em>advice</em> (planes, copy-then-edit, validation) remains
+    correct; only its tool names are stale. This course always uses the live names below.
+  </p>
+</div>
+
+<h2>The seven tools</h2>
+<p>Each row cites the registration line in <code>packages/extensions/tool-cordis/src/index.ts</code>:</p>
+<table>
+  <tr><th>Tool</th><th>Line</th><th>What it does</th></tr>
+  <tr><td><code>cordis_inspect_list</code></td><td>42</td><td>Lists every <em>inspect provider</em> — read-only query surfaces on host and client — with their methods and schemas. Always your first call.</td></tr>
+  <tr><td><code>cordis_inspect_query</code></td><td>61</td><td>Runs one declared read-only query: exact service methods (<code>Service.listService</code>), event contracts (<code>Event.listEvents</code>), sandbox globals (<code>Builtin.listBuiltins</code>), visible tools (<code>Tool.listTools</code>), and — from the browser — live slot trees and theme tokens.</td></tr>
+  <tr><td><code>cordis_inspect_self</code></td><td>97</td><td>Lists this session’s dynamic plugins; with <code>pluginId</code>+<code>packageId</code> returns exact source and diagnostics.</td></tr>
+  <tr><td><code>cordis_define</code></td><td>149</td><td>Records an immutable <em>package</em>: a name, purpose, and a host half and/or client half of plain-JavaScript code. Validates syntax only — <strong>nothing runs yet</strong>.</td></tr>
+  <tr><td><code>cordis_run</code></td><td>241</td><td>Activates one package (<code>mode: run</code> first time / restart / rollback; <code>update</code> to switch versions). A client half may require your approval in the UI.</td></tr>
+  <tr><td><code>cordis_stop</code></td><td>330</td><td>Disposes the running effects; keeps the definition, versions, and grants.</td></tr>
+  <tr><td><code>cordis_undefine</code></td><td>352</td><td>Permanently removes the plugin and all its packages.</td></tr>
+</table>
+
+<h3>The vocabulary: Plugin → Package → Run</h3>
+<p>Three ids, from the toolset’s own system prompt:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/tool-cordis/src/prompt.ts (“Identity, versions, and approval”)</figcaption>
+<pre><code>- pluginId identifies a Plugin that can be modified over time ...
+- packageId identifies one immutable Host/Client source version under a Plugin.
+  To change code, define a new Package; never overwrite an old version.
+- pluginRunId identifies one activation attempt ...
+- currentPackageId is the most recent fully successful Package ...
+- nextPackageId is the target awaiting approval, being attempted, ... or most
+  recently failed.</code></pre>
+</figure>
+<p>
+  So iteration looks like: <code>define</code> v1 → <code>run</code> → find a bug →
+  <code>define</code> v2 <em>under the same pluginId</em> (<code>plugin: {kind: "existing", pluginId}</code>) →
+  <code>run</code> with <code>mode: "update"</code>. Rollback is <code>run</code> on the old package. Versions are
+  immutable, so you can always get back.
+</p>
+
+<h3>What dynamic plugins are — and are not</h3>
+<ul>
+  <li>They live <strong>only in process memory</strong>: a dsh restart clears them. They change no file, no
+      <code>cordis.yml</code>, no preset. (README: “Dynamic packages live only in the shared DSH process
+      memory… cannot be promoted automatically.”)</li>
+  <li>They are <strong>real</strong>: a host half gets a <code>ctx</code> façade onto the live runtime — it can
+      register model tools, listen to events, call services. A client half is delivered to every open
+      web page and can register UI into shipped slots.</li>
+  <li>They are <strong>session-scoped</strong>: only the session that defined a plugin sees and controls it.</li>
+  <li>The sandbox “isolates globals but is not a security boundary” — hence the shell-access trust
+      stance. (<code>packages/extensions/tool-cordis/README.md</code>, “Trust stance”.)</li>
+</ul>
+<p>Perfect, in other words, for <em>probing and prototyping</em> — which is how chapters 6 and 11 use them.</p>
+
+<h2>The code rules inside a dynamic plugin</h2>
+<p>
+  Both halves are <em>plain JavaScript function bodies that return a plugin object</em>. The
+  <code>cordis-plugin-development</code> skill (this one is current) drills the rules; the four that
+  matter most:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/cordis-plugin-development/SKILL.md (condensed)</figcaption>
+<pre><code>1. Plain JS only: no import/require, no TypeScript, no JSX.
+   Client React code must use React.createElement(...).
+
+2. Services: read optional ones with ctx.get('name') and handle undefined;
+   declare inject: ['name'] only for hard dependencies. Never ctx.name
+   without declaring it.
+
+3. Every side effect must be reversible: use ctx.on() / ctx.effect() /
+   APIs that return disposers, so stop/update/undefine unwinds cleanly.
+
+4. Never JSON.stringify / deep-copy live harness objects (sessions, events,
+   slot props). Extract the leaf fields you need.</code></pre>
+</figure>
+<div class="box ts">
+  <span class="box-title">TypeScript corner · why “plain JavaScript”?</span>
+  <p>
+    Dynamic code is evaluated directly in a <code>node:vm</code> sandbox — no compiler runs. TypeScript
+    annotations would be syntax errors here. This is a feature for you: everything you learned in
+    chapter 2 applies with zero build tooling. When you graduate to a packaged plugin in chapter 13,
+    the same code gains type annotations and a 5-line build script — that’s the whole difference.
+  </p>
+</div>
+
+<h2>Your first live plugin, end to end</h2>
+<p>
+  Time to drive. Open the web UI → new session → workspace <code>/root/agi-lab</code> → preset
+  <strong>创造模式 / Creator mode</strong> (the <code>cordis</code> preset). Then paste each prompt below as a
+  chat message and watch what the agent does. (You are practicing two skills at once: the tool
+  lifecycle, and <em>directing</em> an agent that holds the tools — the same skill your supervisor will
+  need with its workers.)
+</p>
+
+<h3>Step 1 — discover, then query</h3>
+<pre><code>Prompt 1:
+  "Call cordis_inspect_list and tell me, in one line each, which inspect
+   providers exist on host and client."
+
+Prompt 2:
+  "Using cordis_inspect_query, query host Service.listService with no input
+   and show me 10 interesting service keys. Then query the exact service
+   'agentPresets' and paste its method signatures."</code></pre>
+<p>
+  That second query returns the roster’s real, current signatures — <code>list()</code>,
+  <code>copy()</code>, <code>standingKeyFor()</code> — the exact API chapter 6 scripts against. This
+  discover-before-code discipline is the skill’s standard workflow (steps 1–2), and it is why dynamic
+  plugins rarely guess wrong: the runtime tells you its own contracts.
+</p>
+
+<h3>Step 2 — define a host-half plugin that registers a real model tool</h3>
+<pre><code>Prompt 3:
+  "Define a dynamic plugin (cordis_define, plugin kind 'new', idPrefix 'lab').
+   Host half only, with this code, then run it with cordis_run:
+
+   return {
+     name: 'lab-uptime',
+     apply(ctx) {
+       const started = Date.now()
+       harness.registerTool(ctx, harness.defineTool({
+         name: 'lab_uptime',
+         description: 'Seconds since this dynamic plugin was mounted.',
+         parameters: {},
+         output: {
+           schema: { type: 'string' },
+           render(_a, v) { return [{ type: 'text', text: v }] },
+         },
+         async execute() {
+           return `up ${Math.round((Date.now() - started) / 1000)}s`
+         },
+       }))
+     },
+   }"</code></pre>
+<p>Read your own code like a chapter-2 exercise:</p>
+<ul>
+  <li>The function body returns a plugin object — <code>name</code> + <code>apply(ctx)</code> (idea 1).</li>
+  <li><code>harness</code> is a sandbox <em>builtin</em> (discoverable via <code>Builtin.listBuiltins</code>) whose
+      <code>registerTool</code>/<code>defineTool</code> pair registers a model tool owned by this plugin’s
+      fiber — so <code>cordis_stop</code> removes it (idea 5).</li>
+  <li><code>parameters: {}</code> and the <code>output</code> block mirror the real
+      <code>ToolDefinition</code> contract from <code>docs/subsystems/tools.md</code>: a schema for the value,
+      a <code>render</code> that turns it into model-visible content.</li>
+</ul>
+
+<h3>Step 3 — use it, inspect it, remove it</h3>
+<pre><code>Prompt 4:  "Call lab_uptime."          → expect: "up Ns"
+Prompt 5:  "cordis_inspect_self — show my plugins and their states."
+Prompt 6:  "cordis_stop it, try lab_uptime again, and tell me what happens."
+           → expect: the tool is gone from the catalog (unknown tool)
+Prompt 7:  "cordis_undefine it."</code></pre>
+
+<div class="box test">
+  <span class="box-title">Test it live — milestone: the toolset lifecycle</span>
+  <p>You pass this chapter when all of these were observed in your Creator session:</p>
+  <ol>
+    <li><code>cordis_inspect_query</code> returned real signatures for <code>agentPresets</code>.</li>
+    <li><code>cordis_define</code> answered with a <code>pluginId</code>/<code>packageId</code> and “not running yet”.</li>
+    <li>After <code>cordis_run</code>, calling <code>lab_uptime</code> returned an uptime string —
+        a tool that existed nowhere on disk, served by code you wrote into a running process.</li>
+    <li>After <code>cordis_stop</code>, the tool vanished (effects unwound — chapter 2, idea 5, proven live).</li>
+    <li><code>cordis_undefine</code> left <code>cordis_inspect_self</code> reporting no plugins.</li>
+  </ol>
+</div>
+
+<div class="box why">
+  <span class="box-title">Why this matters for the supervisor build</span>
+  <p>
+    Chapter 6 does not edit files by hand to create your preset — it asks a Creator-mode agent to call
+    <code>ctx.agentPresets.copy()</code> through exactly this define/run mechanism (a temporary probe
+    plugin that registers a <code>preset_*</code> tool, then is undefined). You now know every moving part
+    of that trick. And chapter 11’s optional status pill is a client half registered into a shipped
+    slot — same lifecycle, other side of the wire.
+  </p>
+</div>
+
+<h2>If something goes wrong</h2>
+<ul>
+  <li><strong>Run fails technically</strong> → have the agent call
+      <code>cordis_inspect_self(pluginId, packageId)</code>: it returns the exact source plus the error
+      and stack. Define a corrected package <em>under the same plugin</em>; never overwrite.</li>
+  <li><strong>Client half says “awaiting approval”</strong> → that is you: an approval card appears in the
+      conversation. One check mark approves this package; double check marks pre-approve future
+      versions of the same plugin.</li>
+  <li><strong><code>service "x" is not declared</code></strong> → code used <code>ctx.x</code> without
+      <code>inject</code>; switch to <code>ctx.get('x')</code> or declare it (skill, “Common failure checks”).</li>
+</ul>
+
+<nav class="pager">
+  <a class="prev" href="04-lab.html">← Chapter 4 — Your lab</a>
+  <a class="next" href="06-preset.html">Chapter 6 — Milestone 1: the main-agent preset →</a>
+</nav>
+</main>
+</body>
+</html>

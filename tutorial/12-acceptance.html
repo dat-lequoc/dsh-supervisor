@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 · Milestone 7: acceptance run — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 12</span>
+  <span class="spacer"></span>
+  <a href="11-ui.html">←</a>
+  <a href="13-extensions.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 7</p>
+  <h1>Acceptance run</h1>
+  <p class="lede">The formal definition of done: one clean workspace, one scripted mission,
+  every behavior forced once, every artifact graded, and the restart drill. Pass this twice in a
+  row and your supervisor is real.</p>
+</header>
+
+<h2>Why a formal acceptance at all</h2>
+<p>
+  Chapter 10’s rehearsal proved the branches work when freshly coaxed. Acceptance proves they work
+  <em>from a cold start, without coaching</em> — the difference between a demo and a system. The
+  protocol below is your design’s M6, adjusted for the native-first build. Its exit criterion is the
+  design’s own: <strong>every bullet passes twice in a row</strong>; when a step fails, fix persona wording
+  first, machinery second.
+</p>
+
+<h2>Setup: a virgin workspace</h2>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>acceptance setup</figcaption>
+<pre><code>mkdir -p /root/agi-acceptance/.agi/subagents
+cat &gt; /root/agi-acceptance/.agi/config.json &lt;&lt;'EOF'
+{ "wakeMinutes": 5, "questionWaitMinutes": 2 }
+EOF
+touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGELOG.jsonl}</code></pre>
+</figure>
+<p>
+  Open the tmux dashboard from chapter 11 against this workspace, then start a fresh
+  <code>main-agent</code> session on it. From here on you speak only the scripted lines — no hints, no
+  “remember to log that.” If you must coach, that is a finding: note it, fix the persona, restart
+  the run.
+</p>
+
+<h2>The script</h2>
+<p>Each row: what you say/do → what must happen → which artifact proves it.</p>
+<table>
+  <tr><th>#</th><th>You</th><th>Must happen</th><th>Proof</th></tr>
+  <tr><td>1</td><td>“Goal: produce SUMMARY.md describing the layout of /root/deepseek-harness/docs — delegate the work, supervise, deliver.” <span class="muted">(Say nothing about where SUMMARY.md goes.)</span></td>
+      <td>Interview → <code>GOAL.md</code> → explicit confirmation request → goal recorded after your “confirmed”.</td>
+      <td><code>GOAL.md</code>; goal visible in UI; a progress line.</td></tr>
+  <tr><td>2</td><td><em>(nothing)</em></td>
+      <td>First worker spawned with a complete structured task; check-in reminder armed; spawn logged.</td>
+      <td>Spawn call visible in chat; <code>CHANGELOG.jsonl</code> line; <code>schedule_list</code> shows the recurring reminder; child session appears in sidebar.</td></tr>
+  <tr><td>3</td><td><em>(nothing — wait ≥ 5 min with the worker running)</em></td>
+      <td>Timer wake: liveness + log inspection + one-line verdict; no gratuitous steering.</td>
+      <td>Verdict line in <code>NOTES.md</code> timestamped at the wake.</td></tr>
+  <tr><td>4</td><td><em>(stay silent when asked about the output location)</em></td>
+      <td>Question logged <code>pending</code> → patience reminder → after 2 min: <code>assumed</code> with the assumption recorded; work continues.</td>
+      <td><code>questions.jsonl</code> shows the status transition; an <code>assumption</code> line in CHANGELOG.</td></tr>
+  <tr><td>5</td><td>“Have the worker also count the .zh.md files.”</td>
+      <td>Steer via <code>send_message</code> — no kill, no respawn.</td>
+      <td><code>steer</code> CHANGELOG line; the correction visible as the next user-role turn in the child’s session.</td></tr>
+  <tr><td>6</td><td>“That worker is off the rails. Kill it and restart with a tighter brief.”</td>
+      <td><code>interrupt_agent</code> → kill logged → fresh spawn with visibly narrowed scope.</td>
+      <td><code>kill</code> + <code>spawn</code> lines; old child idle in <code>list_agents</code>; new child session.</td></tr>
+  <tr><td>7</td><td><em>(nothing — let it finish)</em></td>
+      <td>Settle notice consumed; outcome read; SUMMARY.md delivered at the assumed location; goal completed; check-in reminder deleted.</td>
+      <td><code>SUMMARY.md</code>; final progress line; <code>schedule_list</code> empty; worker’s <code>outcome.md</code> under <code>.agi/subagents/&lt;id&gt;/</code>.</td></tr>
+  <tr><td>8</td><td>“Actually — also mention the cookbook subfolder in one paragraph.” <span class="muted">(after completion)</span></td>
+      <td>Treated as a goal amendment: confirmation → <code>GOAL_AMENDMENTS.md</code> entry → one more small delegation or direct trivial edit, per its judgment — with the choice logged.</td>
+      <td>Amendment entry; updated SUMMARY.md.</td></tr>
+</table>
+
+<h2>The restart drill</h2>
+<p>
+  Now the property that gives the system its name — indifference to restarts. Your supervisor’s
+  memory is three-layered, all durable: the session log (native), <code>.agi/</code> (yours), the goal
+  tool’s state (native). Prove all three:
+</p>
+<div class="box test">
+  <span class="box-title">Test it live — restart resilience</span>
+  <ol>
+    <li>Mid-mission (re-run steps 1–2 with a fresh goal, or before step 7), restart the process:
+        <code>tmux attach -t dsh</code> → <kbd>Ctrl-C</kbd> → <code>dsh web</code> → detach.</li>
+    <li>Reload the browser; open the <em>same</em> supervisor session (it is in the sidebar — sessions
+        are durable).</li>
+    <li>Say exactly: <em>“continue.”</em></li>
+    <li><strong>Expect:</strong> it re-reads <code>.agi/</code> as needed, checks <code>list_agents</code> for its
+        workers (durable children — a settled one’s outcome is on disk; an unfinished one can be
+        messaged, which cold-resumes it), re-arms its check-in reminder if workers still run, and
+        proceeds. <strong>It must not</strong> re-interview, re-write GOAL.md, or spawn a duplicate worker
+        for work already done.</li>
+    <li><strong>Caveat to verify honestly:</strong> a schedule reminder that would have fired <em>while the
+        process was down</em> is delivered per the schedule subsystem’s catch-up rules on resume — but
+        your dynamic pill from chapter 11 is gone (process memory). Re-run it if wanted; note that
+        this is expected, not a failure.</li>
+  </ol>
+</div>
+
+<h2>Grading and the failure ledger</h2>
+<p>
+  Keep an acceptance ledger (a file in <code>/root/dev/</code>, next to the design): one line per step per
+  run — <code>pass</code> / <code>fail(reason)</code> / <code>coached(what)</code>. The design’s exit criterion,
+  verbatim: every bullet passes <strong>twice in a row</strong>. Common first-run findings and their fixes:
+</p>
+<table>
+  <tr><th>Finding</th><th>Class</th><th>Fix</th></tr>
+  <tr><td>Spawned before the goal was confirmed</td><td>Protocol violation</td><td>Make CEREMONY step 1 of THE LOOP explicitly blocking: “Do not call spawn_dev_agent before GOAL.md is confirmed.”</td></tr>
+  <tr><td>Forgot the CHANGELOG line for a steer</td><td>Protocol violation</td><td>Move logging into the verb’s own sentence: “Steer = send_message + one CHANGELOG line, always together.”</td></tr>
+  <tr><td>Answered its own question instantly instead of waiting</td><td>Protocol gap</td><td>Add: “A question you can answer by inspection is not a user question — resolve it and move on; only user-owned unknowns enter questions.jsonl.”</td></tr>
+  <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>
+  <tr><td>Tool errored (schedule missing, spawn rejected)</td><td>Mechanism</td><td>Chapter 6/8 regression: re-validate the preset; check the profile patch still composes (tmux log).</td></tr>
+</table>
+
+<h2>Where you stand</h2>
+<p>
+  Passing this chapter means you have what the design document calls the headless core — goal
+  ceremony, delegation, supervision, questions, files, resilience — built from a preset, a persona,
+  two YAML rows, and a file convention. The 24/7 mission (X.com growth or anything else) is now “run
+  the ceremony with a bigger goal and let it loop,” plus whatever worker tooling that mission needs —
+  which workers install themselves at runtime, per their tasks.
+</p>
+<p>
+  What remains optional: the custom machinery the plan originally front-loaded. If you want it —
+  structured traces, a blocking wait, an HTTP state endpoint, a persistent pill — chapter 13 shows
+  the packaged-plugin path with a real installed example as your template.
+</p>
+
+<nav class="pager">
+  <a class="prev" href="11-ui.html">← Chapter 11 — Milestone 6: UI</a>
+  <a class="next" href="13-extensions.html">Chapter 13 — Optional extensions →</a>
+</nav>
+</main>
+</body>
+</html>

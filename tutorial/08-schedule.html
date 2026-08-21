@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8 · Milestone 3: time — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 8</span>
+  <span class="spacer"></span>
+  <a href="07-brain.html">←</a>
+  <a href="09-delegation.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 3</p>
+  <h1>Time: the schedule overlay</h1>
+  <p class="lede">A supervisor needs two timers: a patience window on questions and a periodic
+  check-in on running workers. The harness ships both as an opt-in overlay — two rows in your
+  profile patch, hot-applied with no restart. This is your first host-plane change.</p>
+</header>
+
+<h2>What the schedule subsystem is</h2>
+<p>
+  <code>@deepseek-ai/dsh-schedule</code> owns durable reminders that return to the original session
+  <em>as ordinary later conversation turns</em>. Three facts define the design space
+  (<code>docs/subsystems/schedule.md</code>):
+</p>
+<ul>
+  <li><strong>Delivery is a turn.</strong> A firing reminder is a message into the session’s inbox — the
+      same wake mechanism as everything else in chapter 3. No callbacks, no polling.</li>
+  <li><strong>Three rules:</strong> one-shot <code>after_seconds</code> (any positive delay), one-shot absolute
+      <code>at</code>, and recurring <code>every_seconds</code> with a hard minimum of <strong>300 seconds</strong>.
+      Records are durable session events, so they survive restarts of the process.</li>
+  <li><strong>Session-local:</strong> a reminder returns to the session that created it. Perfect — the Main
+      Agent session is by definition the live one.</li>
+</ul>
+<p>Mapping to your two needs:</p>
+<table>
+  <tr><th>Need</th><th>Mechanism</th></tr>
+  <tr><td>Question patience (<code>questionWaitMinutes</code>, default 5)</td><td><code>schedule_create</code> one-shot, <code>after_seconds: questionWaitMinutes*60</code>. No minimum — 2-minute patience works fine.</td></tr>
+  <tr><td>Periodic worker check-in (<code>wakeMinutes</code>, default 5)</td><td><code>schedule_create</code> recurring, <code>every_seconds: wakeMinutes*60</code> — created when a worker spawns, deleted when work is done. Minimum 300 s ⇒ <code>wakeMinutes ≥ 5</code>, which matches your default.</td></tr>
+</table>
+
+<div class="box why">
+  <span class="box-title">Why this replaces the plan’s custom <code>wait_for_agents</code> tool (mostly)</span>
+  <p>
+    The plan’s M2c built a blocking tool: sleep until a child settles or a timeout passes. Natively,
+    <em>both wake sources already exist</em>: a settling child unconditionally delivers a notice to the
+    parent (chapter 9), and the recurring reminder is the timeout. The only difference is form —
+    instead of blocking inside a tool call, the supervisor ends its turn and gets woken. Same loop,
+    zero code. The blocking version remains available as a chapter 13 exercise if you prefer its
+    ergonomics.
+  </p>
+</div>
+
+<h2>The overlay: two rows</h2>
+<p>
+  Schedule is <em>not mounted by default</em>. The harness ships the opt-in as an example overlay —
+  read it, it is exactly two rows:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/examples/web-schedule/cordis.yml (the shipped overlay)</figcaption>
+<pre><code>- insert:
+    - id: time-context
+      name: '@deepseek-ai/dsh-time-context'
+    - id: schedule
+      name: '@deepseek-ai/dsh-schedule'</code></pre>
+</figure>
+<ul>
+  <li><code>dsh-schedule</code> — the service, the session driver, and the model tools
+      (<code>schedule_create</code> / <code>schedule_list</code> / <code>schedule_delete</code>).</li>
+  <li><code>dsh-time-context</code> — injects current time (and the browser’s time zone) into requests, so
+      the model can reason about “in 5 minutes” correctly. Schedule’s doc leans on it for time-zone
+      interpretation; mount them together.</li>
+</ul>
+<p>
+  Host plane or preset? Host: the schedule <em>service and driver</em> serve every session and the tools
+  register globally — and more practically, this is the shipped overlay shape. So it goes in your
+  profile patch layer.
+</p>
+
+<h2>Apply it</h2>
+<p>Back up, then edit your live patch file:</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>/root/.dsh/profiles/web/cordis.patch.yml (replace the current <code>[]</code>)</figcaption>
+<pre><code># Profile patch layer — applied after every bundle layer. Live-watched.
+- insert:
+    - id: time-context
+      name: '@deepseek-ai/dsh-time-context'
+    - id: schedule
+      name: '@deepseek-ai/dsh-schedule'</code></pre>
+</figure>
+<pre><code>cp /root/.dsh/profiles/web/cordis.patch.yml{,.bak}   # (before editing)
+# ... edit ...
+</code></pre>
+<p>
+  No restart: the file is watched, and each change transactionally recomposes the tree
+  (<code>packages/boot/app-boot/README.md</code>: “Every profile boot keeps <code>cordis.patch.yml</code>
+  live through <code>watchUserPatches</code>… A rejected read, parse, or Loader candidate leaves the last
+  good tree running”). If you typo the YAML, the old tree keeps running and the server log (tmux)
+  shows <code>hmr/config-update-failed</code> — fix and save again.
+</p>
+
+<div class="box warn">
+  <span class="box-title">Two sharp edges</span>
+  <ul>
+    <li><strong>Duplicate ids are fatal at compose time.</strong> If you later add more inserts, never reuse
+        <code>id: schedule</code> etc.</li>
+    <li><strong>An empty patch file must be <code>[]</code>.</strong> A file of only comments throws (“it parses
+        to nothing, not to a list”) — same README.</li>
+  </ul>
+</div>
+
+<div class="box test">
+  <span class="box-title">Test it live — milestone 3 acceptance</span>
+  <ol>
+    <li><strong>Tools appeared (existing sessions too):</strong> in your <code>main-agent</code> session ask
+        <em>“do you now have schedule tools?”</em> — expect <code>schedule_create</code> /
+        <code>schedule_list</code> / <code>schedule_delete</code> in its catalog. (Composition changes reach
+        the live tree; the next turn sees the new tools.)</li>
+    <li><strong>One-shot delivery:</strong> <em>“Create a reminder for 60 seconds from now that says
+        ‘patience-test’. Then stop.”</em> Wait a minute doing nothing. <strong>Expect:</strong> the agent
+        wakes <em>by itself</em> with a new turn carrying the reminder — you see it arrive in the
+        conversation.</li>
+    <li><strong>The persona’s patience path now works:</strong> re-run chapter 7’s question test — ask it
+        something ambiguous mid-work, stay silent. With <code>questionWaitMinutes: 2</code> in your
+        <code>config.json</code>, expect: question logged as <code>pending</code> → reminder created → two
+        minutes later it wakes, flips the entry to <code>assumed</code> with a recorded assumption, logs
+        it, and proceeds.</li>
+    <li><strong>Recurring floor:</strong> <em>“create a recurring reminder every 60 seconds”</em> —
+        expect a refusal/error (minimum 300 s), proving you know where the floor is.</li>
+  </ol>
+</div>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · reading the schedule record types</span>
+  <p>
+    <code>docs/subsystems/schedule.md</code> defines the durable records as interfaces — e.g.
+    <code>interface AfterScheduleRecord { readonly kind: 'after'; readonly afterSeconds: number; … }</code>.
+    Two idioms to bank: a <em>literal type</em> (<code>kind: 'after'</code> — the field can only ever be that
+    exact string; unions of these make “tagged unions” you can switch on), and <code>readonly</code>
+    (compile-time immutability). Durable records here are tagged unions everywhere: events, stop
+    reasons, message sources. Recognizing the tag field is half of reading harness types.
+  </p>
+</div>
+
+<h2>What exists now</h2>
+<p>
+  A supervisor that can wake itself. The question protocol is fully operational; the periodic
+  check-in has its mechanism but nothing to check on yet. Next: workers.
+</p>
+
+<nav class="pager">
+  <a class="prev" href="07-brain.html">← Chapter 7 — Milestone 2: the brain</a>
+  <a class="next" href="09-delegation.html">Chapter 9 — Milestone 4: workers →</a>
+</nav>
+</main>
+</body>
+</html>

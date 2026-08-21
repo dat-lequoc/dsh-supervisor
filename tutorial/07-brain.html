@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7 · Milestone 2: the brain — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 7</span>
+  <span class="spacer"></span>
+  <a href="06-preset.html">←</a>
+  <a href="08-schedule.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 2</p>
+  <h1>The brain: persona, protocol, and the <code>.agi/</code> contract</h1>
+  <p class="lede">A supervisor is mostly prose. This chapter writes the persona that turns your
+  preset into the Main Agent — the goal ceremony, the question protocol, the file discipline —
+  and tests the ceremony end to end with the native goal tool.</p>
+</header>
+
+<h2>Where a persona lives and how it works</h2>
+<p>
+  Your preset’s first row is the persona — a prompt section that shadows the deployment default for
+  sessions on this preset. It supports two template variables resolved per agent:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml (the copied persona row — currently standard’s)</figcaption>
+<pre><code>- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: &gt;-
+      You are a coding agent powered by the {{model}} model. Your working
+      directory is {{cwd}}.</code></pre>
+</figure>
+<p>
+  You are about to replace <code>text</code> with roughly a page of protocol. Two writing rules first,
+  because persona text is engineering, not vibes:
+</p>
+<ul>
+  <li><strong>Don’t restate what infrastructure guarantees.</strong> The settle notice arrives whether or not
+      the persona mentions it; the child’s <code>report</code> tool exists regardless. The persona’s job is
+      the <em>decisions</em>: what to do when those things happen.</li>
+  <li><strong>Every rule must be testable.</strong> Each paragraph below maps to a forced test in
+      chapter 12. If you add a rule you can’t force, you can’t know it works.</li>
+</ul>
+
+<h2>The state contract: <code>.agi/</code></h2>
+<p>Create the skeleton once in your lab workspace (the supervisor maintains it afterwards):</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>one-time scaffold</figcaption>
+<pre><code>mkdir -p /root/agi-lab/.agi/subagents
+cd /root/agi-lab/.agi
+
+cat &gt; config.json &lt;&lt;'EOF'
+{
+  "wakeMinutes": 5,
+  "questionWaitMinutes": 5
+}
+EOF
+
+touch NOTES.md progress.jsonl questions.jsonl CHANGELOG.jsonl
+python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</code></pre>
+</figure>
+<p>File semantics — this is the contract the persona will enforce:</p>
+<table>
+  <tr><th>File</th><th>Owner</th><th>Format / rule</th></tr>
+  <tr><td><code>config.json</code></td><td><strong>You only.</strong> The agent may propose changes as questions, never edit.</td>
+      <td><code>wakeMinutes</code>: periodic check-in interval. <code>questionWaitMinutes</code>: patience before assuming. (The design’s <code>toolDelaySeconds</code> is dropped in the native-first build; chapter 13 restores it if wanted.)</td></tr>
+  <tr><td><code>GOAL.md</code></td><td>Agent writes once, at ceremony end. Never edited after locking.</td>
+      <td>Objective, constraints, milestones, out-of-scope. Changes go to <code>GOAL_AMENDMENTS.md</code>, append-only, each user-confirmed.</td></tr>
+  <tr><td><code>NOTES.md</code></td><td>Agent.</td><td>Free-form working memory. Consulted and updated as work demands — no mandated ritual (design simplification S1).</td></tr>
+  <tr><td><code>progress.jsonl</code></td><td>Agent.</td><td>One <code>{"ts","text"}</code> line per milestone or key insight — the human-readable feed.</td></tr>
+  <tr><td><code>questions.jsonl</code></td><td>Agent.</td><td>One line per question: <code>{"ts","id","status","q", ...}</code>; status ∈ <code>pending → assumed | answered | withdrawn</code>.</td></tr>
+  <tr><td><code>CHANGELOG.jsonl</code></td><td>Agent.</td><td>One line per consequential action: <code>{"ts","actor","action","summary","detail"}</code>; action ∈ <code>spawn | steer | kill | assumption | config-proposal</code>.</td></tr>
+  <tr><td><code>subagents/&lt;child-id&gt;/</code></td><td>Agent + workers.</td><td>Per-worker artifacts; at minimum the worker’s <code>outcome.md</code>.</td></tr>
+</table>
+
+<h2>The persona</h2>
+<p>
+  Replace the persona row’s <code>text</code> in
+  <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code> with this. It is adapted from your
+  plan’s M5 draft, updated for the native-first decisions (no brief files, no wake ritual, native
+  tool names):
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>the supervisor persona (persona row → config → text)</figcaption>
+<pre><code>text: |-
+  You are the Main Agent: an always-on supervisor powered by {{model}},
+  working in {{cwd}}. You supervise dev subagents; you do not do
+  implementation work yourself.
+
+  STATE — files are the truth; your chat context is a cache:
+  - Durable state lives in {{cwd}}/.agi/. Consult and update it as the work
+    demands; a process restart must cost nothing.
+  - .agi/config.json is USER-ONLY. Never edit it; propose changes as
+    questions. Re-read it when you need a timing value; the user may retune
+    it while you run.
+  - Append every consequential action (spawn / steer / kill / assumption /
+    config-proposal) to .agi/CHANGELOG.jsonl as one JSON line:
+    {"ts","actor":"main-agent","action","summary","detail"}.
+  - Record milestones and key insights as {"ts","text"} lines in
+    .agi/progress.jsonl — the user follows you at a glance there.
+
+  CEREMONY (once per goal): interview the user over as many turns as needed
+  until objective, constraints, milestones, and out-of-scope are unambiguous.
+  Ask for anything only the user can provide (credentials, cookies,
+  accounts). Then write {{cwd}}/.agi/GOAL.md and ask for explicit
+  confirmation — this is the ONE question you may block on. On confirmation,
+  record the goal with the goal tool and treat GOAL.md as locked: never edit
+  it; user-confirmed changes append to GOAL_AMENDMENTS.md.
+
+  THE LOOP (after the goal locks):
+  1. Plan the next self-contained unit of work.
+  2. Spawn it: call spawn_dev_agent with a description naming the role, and
+     a prompt containing the COMPLETE task (structure: Role / Objective /
+     Scope in-out / Context pointers / Protocol / Constraints). Tell the
+     worker to write outcome.md under {{cwd}}/.agi/subagents/&lt;its own
+     session id&gt;/ when done. Log the spawn.
+  3. Sleep by ending your turn. You will wake when a worker settles or
+     reports, a scheduled reminder fires, or the user speaks.
+  4. On wake, triage:
+     - Settle notice: read the worker's outcome.md and final message; update
+       progress.jsonl; spawn the next unit or finish.
+     - Worker report (a question): answer via send_message if you know;
+       otherwise ask the user (QUESTIONS below) and keep other work moving.
+     - Scheduled check-in: inspect the worker (list_agents; read its session
+       or artifacts). On track → let it run and re-arm the check-in.
+       Drifting → steer: send_message with a concrete correction (it becomes
+       the worker's next turn; interrupt_agent first ONLY if the current
+       turn must stop now). Context poisoned → interrupt_agent, log the
+       kill, spawn fresh with a revised task.
+     - User message: it overrides everything; it is steering.
+  5. Repeat until the goal's milestones are met; keep the goal tool current.
+
+  QUESTIONS (to the user):
+  - Ask in chat AND append {"ts","id","status":"pending","q"} to
+    .agi/questions.jsonl. Immediately schedule_create a one-shot reminder
+    for questionWaitMinutes (from config.json), then continue any work that
+    does not depend on the answer.
+  - If the reminder fires with no reply: set status "assumed", record the
+    assumption you take, log it, proceed. A late reply is fresh steering:
+    state what you assumed and already did; the user decides on rework.
+  - If you resolve a question yourself, set status "withdrawn" with the
+    reason and delete the pending reminder.
+
+  LIMITS:
+  - Run at most ONE dev subagent at a time unless the user raises the limit.
+  - Never edit .agi/config.json, the host composition, or shipped presets.
+  - You may propose preset/persona changes; apply none without user
+    confirmation.</code></pre>
+</figure>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · YAML multiline strings</span>
+  <p>
+    <code>|-</code> starts a <em>literal block</em>: newlines are preserved, the trailing newline is
+    stripped, and everything must be indented deeper than <code>text:</code>. The copied file used
+    <code>&gt;-</code> (folded — newlines become spaces); for a structured protocol you want
+    <code>|-</code>. Indentation errors here are the most common way to break the file — re-run
+    validation after saving.
+  </p>
+</div>
+
+<h2>The native goal tool (what “record the goal” means)</h2>
+<p>
+  The persona says “record the goal with the goal tool.” That tool comes from the
+  <code>tool-goal</code> row your preset inherited; the goal <em>service</em> and its session driver live
+  host-side (the base bundle mounts them — <code>packages/bundle/base/cordis.patch.yml</code>, rows
+  <code>goal</code>/<code>tool-goal</code>), and the web UI renders the current goal for the session. That
+  display is your Progress-tab replacement for the goal itself; <code>progress.jsonl</code> covers the
+  feed. Zero UI code.
+</p>
+
+<h2>Validate, then run the ceremony</h2>
+<p>Persona edits are composition edits — validate like chapter 6 (ask your Creator session to re-run
+<code>standingKeyFor('main-agent')</code>), then open a <strong>fresh</strong> session on
+<code>main-agent</code> in <code>/root/agi-lab</code>.</p>
+
+<div class="box test">
+  <span class="box-title">Test it live — milestone 2 acceptance: the goal ceremony</span>
+  <p>Drive this script as the user, in a fresh <code>main-agent</code> session:</p>
+  <ol>
+    <li><strong>Give a vague mission:</strong> <em>“I want a tidy, well-documented summary of the DSH docs
+        folder. Make it happen.”</em></li>
+    <li><strong>Expect an interview, not action.</strong> It should ask clarifying questions (where should
+        output go? what depth? what’s out of scope?) — not spawn anything yet.</li>
+    <li>Answer tersely; let it iterate. <strong>Expect:</strong> it writes
+        <code>/root/agi-lab/.agi/GOAL.md</code> and asks for explicit confirmation.</li>
+    <li>Say <em>“confirmed.”</em> <strong>Expect:</strong> it records the goal via the goal tool (the goal
+        appears in the session’s UI), and appends a line to <code>progress.jsonl</code>.</li>
+    <li><strong>Amendment discipline:</strong> say <em>“actually, also cover the cookbook subfolder.”</em>
+        <strong>Expect:</strong> an entry in <code>GOAL_AMENDMENTS.md</code> after your confirmation —
+        <code>GOAL.md</code> itself untouched (<code>stat -c %Y .agi/GOAL.md</code> before/after to prove it).</li>
+    <li><strong>Config discipline:</strong> say <em>“set questionWaitMinutes to 2 for me.”</em>
+        <strong>Expect:</strong> it refuses to edit <code>config.json</code> and instead proposes the change
+        (and logs a <code>config-proposal</code>). You edit the file yourself.</li>
+  </ol>
+  <p><strong>Not yet expected to work:</strong> the patience timer (needs chapter 8’s schedule tools) and
+  spawning (chapter 9). If it tries to <code>schedule_create</code> and fails with “unknown tool” — good,
+  that is exactly the gap the next chapter fills.</p>
+</div>
+
+<div class="box why">
+  <span class="box-title">Why the interview is worth being strict about</span>
+  <p>
+    Everything downstream — task decomposition, worker prompts, milestone checks — inherits its
+    quality from <code>GOAL.md</code>. The ceremony is also your one deliberately blocking interaction, so
+    it is where the human puts in the minutes that save the machine hours. If the agent under-asks,
+    tighten the CEREMONY paragraph (e.g. add “ask at least about output location, success criteria,
+    and out-of-scope”) and re-test; persona iteration is normal and cheap.
+  </p>
+</div>
+
+<h2>What exists now</h2>
+<p>
+  A supervisor that can lock a goal, keep honest files, and refuse to touch what isn’t its own. It
+  still cannot wake itself on a timer (chapter 8) or delegate (chapter 9).
+</p>
+
+<nav class="pager">
+  <a class="prev" href="06-preset.html">← Chapter 6 — Milestone 1: the preset</a>
+  <a class="next" href="08-schedule.html">Chapter 8 — Milestone 3: time →</a>
+</nav>
+</main>
+</body>
+</html>

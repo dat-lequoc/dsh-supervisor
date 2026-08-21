@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9 · Milestone 4: workers — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 9</span>
+  <span class="spacer"></span>
+  <a href="08-schedule.html">←</a>
+  <a href="10-loop.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 4</p>
+  <h1>Workers: spawn, steer, kill, report</h1>
+  <p class="lede">The heart of the harness for your purposes: continuable background subagents.
+  This chapter explains the machinery precisely — then you exercise every verb by hand, which is
+  the design’s “M0 smoke test” and the foundation the supervision loop stands on.</p>
+</header>
+
+<h2>What a continuable child actually is</h2>
+<p>The subagent subsystem doc defines it in one breath worth reading twice:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 116–124, abridged)</figcaption>
+<pre><code>A continuable background subagent is one durable child Session with at most one
+process-local Activation, the period when a reconstructed child Agent is
+resident. An Activation is not a request, result, cancellation, or Task: it may
+execute many FIFO turns ...
+
+persisted Session
+  -&gt; optional live Activation
+       -&gt; one retained AgentHandle
+       -&gt; Agent inbox as the only turn FIFO
+       -&gt; zero or more owned child Activations</code></pre>
+</figure>
+<p>Unpacked for a supervisor:</p>
+<ul>
+  <li><strong>The child is a real session</strong> — a durable JSONL log like any other, visible in the web
+      sidebar, greppable on disk. Not a throwaway task.</li>
+  <li><strong>“Running” is temporary residency.</strong> When the child has turns to execute, an Activation
+      exists; when it finishes and owns nothing, it settles and unloads. The durable session stays.</li>
+  <li><strong>Cold resume is free.</strong> Messaging a child whose Activation is gone resurrects it from its
+      persisted session — days later, across process restarts. Your workers are immortal until you
+      choose otherwise.</li>
+  <li><strong>One inbox, one order.</strong> Every message to the child (its task, your steering, answers to
+      its questions) becomes one FIFO turn. No message can interleave into a turn already underway.</li>
+</ul>
+
+<h2>The five verbs and their exact semantics</h2>
+
+<h3>1 · Spawn</h3>
+<p>
+  Your <code>spawn_dev_agent</code> tool (and the generic <code>subagent</code>) takes
+  <code>{ description, prompt, run_in_background }</code>. With <code>backgroundMode: continuable</code> and
+  background on, the tool calls <code>ctx.subagents.startContinuable()</code>:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
+<pre><code>/**
+ * Establish one durable continuable child and deliver its initial prompt.
+ * Resolves when the child's inbox accepts that prompt, without waiting for
+ * the turn to start ...
+ * @returns the durable child id and the accepted prompt's message id.
+ */
+async startContinuable(spec: ContinuableStartSpec): Promise&lt;ContinuableStart&gt;</code></pre>
+</figure>
+<p>
+  Three facts ride along. The child records your supervisor as <code>parentSession</code> in its header
+  (lineage is durable). The row’s <code>persona</code> is registered as the child’s own persona and even
+  snapshotted in its descriptor for cold resume (<code>docs/subsystems/subagent.md</code>: “a
+  <code>continuable</code> descriptor … additionally snapshots resolved child
+  <code>agentOptions.provider/model</code> and optional <code>persona</code>/<code>toolFilter</code>”). And the
+  tool returns the child id <em>immediately</em> — spawning never blocks on the work.
+</p>
+
+<h3>2 · Steer — <code>send_message</code></h3>
+<p>The delivery table, verbatim, because it is the whole steering story:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 128–135)</figcaption>
+<pre><code>SubagentRuntime.followup() is the sole continuation-message operation, and
+routing depends only on Activation residency:
+
+| Activation state | followup                          |
+|------------------|-----------------------------------|
+| running          | enqueue in the same Activation    |
+| waiting          | wake the same Activation          |
+| no Activation    | cold-resume a new Activation      |</code></pre>
+</figure>
+<p>
+  So a steering message to a busy worker lands <em>after its current turn</em> — a correction cannot tear
+  a thought in half. If it must (“stop touching prod!”), that is what interrupt-then-send is for.
+  Authority is checked: only the direct parent (your supervisor) may message its child.
+</p>
+
+<h3>3 · Kill — <code>interrupt_agent</code> + silence</h3>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (interrupt, abridged)</figcaption>
+<pre><code>interrupt(targetSessionId, authority): void
+  // Fire-and-return: the cancel signal is issued before this returns, but the
+  // target may keep running until it observes the signal. Unclaimed pending
+  // inbox work, the Activation, and published descendants are preserved ...
+  // Once the interrupted driver is idle, a waking send resumes the parked
+  // FIFO queue.</code></pre>
+</figure>
+<p>
+  There is deliberately no destroy. Kill = interrupt + never message again: an un-messaged child
+  runs no turns and burns zero tokens, while its session stays on disk for the post-mortem. “Kill”
+  in your changelog means exactly this pair of decisions.
+</p>
+
+<h3>4 · Report — the worker’s side</h3>
+<p>
+  Every continuable in-process child automatically gets a <code>report</code> tool — your preset didn’t
+  add it; the <em>host</em> row <code>tool-subagent-report</code> registers a continuable-child setup that
+  installs it in every child (<code>packages/bundle/base/cordis.patch.yml</code>, lines 331–333; the
+  cordis preset’s comments explain why that row must be host-plane). Delivery default is
+  <strong>wakeup</strong>: the parent gets a real turn. That is your blocked-question channel, and your
+  worker persona (chapter 6) already instructs workers to use it.
+</p>
+
+<h3>5 · The settle notice — the free wake</h3>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 212 &amp; 222–231, abridged)</figcaption>
+<pre><code>... when a resident Activation settles, it delivers one notice to the child's
+durable direct parent describing how that epoch ended and carrying its final
+assistant content. That delivery is unconditional for every child whose id a
+caller received ...
+
+interface SubagentSettledMessageSource {
+  readonly kind: 'subagent-settled'
+  readonly form: 'notice'
+  readonly summary: string        // one-line account of how the child ended
+  readonly senderSessionId: SessionId
+}</code></pre>
+</figure>
+<p>
+  Unconditional. Every worker you spawn will wake you exactly once when it finishes — with its final
+  message attached. This single guarantee is why the supervision loop needs no custom code.
+</p>
+
+<h3>Bookkeeping — <code>list_agents</code></h3>
+<p>
+  Enumerates your children with status <code>running</code> / <code>idle</code> / <code>ready</code>
+  (<code>ready</code> = storage-only, resumable), reading durable state without waking anyone
+  (<code>docs/tool-catalog.md</code>, <code>list_agents</code>; service:
+  <code>listChildren()</code> in <code>subagent.md</code>). This is how the supervisor checks “what do I
+  have running?” on a timer wake, and how it enforces its one-worker limit.
+</p>
+
+<h2>The task prompt: the supervisor’s half of the contract</h2>
+<p>
+  Native machinery delivers the message; <em>what</em> the message says is your design’s §7.2 structure,
+  now carried entirely in the spawn call (simplification S4 — no brief files). The persona you wrote
+  in chapter 7 already mandates it; here is the shape a good spawn looks like, for your test below:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>anatomy of a spawn_dev_agent call (what the supervisor should compose)</figcaption>
+<pre><code>description: "researcher: count zh docs"
+
+prompt: |
+  # Role
+  You are a filesystem researcher.
+
+  # Objective
+  Produce an exact count of files matching *.zh.md under
+  /root/deepseek-harness/docs, with a per-subdirectory breakdown.
+
+  # Scope
+  In: reading under that directory. Out: writing anywhere except your
+  outcome file; network; installing anything.
+
+  # Context
+  The directory exists and is readable. Your workspace is /root/agi-lab.
+
+  # Protocol
+  - Blocked on info only your supervisor/user has → call report with the
+    precise question, then stop.
+  - Done → write outcome.md (did / verified / remaining) under
+    /root/agi-lab/.agi/subagents/&lt;your session id&gt;/ , then report a
+    one-paragraph summary.
+
+  # Constraints
+  Read-only outside your outcome directory.
+
+run_in_background: true</code></pre>
+</figure>
+
+<h2>Test it live — the M0 smoke test, by hand</h2>
+<p>
+  You now drive every verb yourself, as the user, before trusting the supervisor to. Use your
+  <code>main-agent</code> session in <code>/root/agi-lab</code>. This is the design’s five-observation M0,
+  adapted to your tools.
+</p>
+<div class="box test">
+  <span class="box-title">Milestone 4 acceptance — five observations</span>
+  <ol>
+    <li><strong>Spawn returns an id.</strong> Say: <em>“Spawn a dev agent in the background with a slow task:
+        role researcher; objective: sleep 90 seconds using bash, then count files in /tmp; protocol
+        as usual (outcome.md + report).”</em> <strong>Expect:</strong> the tool result names a started child
+        id; the supervisor’s turn ends. In the sidebar, a new child session appears; on disk,
+        <code>ls -lt /root/.dsh/sessions/--root-agi-lab--/</code> grew by one.</li>
+    <li><strong>Steer lands as the next turn.</strong> While the child sleeps, say: <em>“Steer it: also count
+        directories, not just files.”</em> <strong>Expect:</strong> a <code>send_message</code> call; in the
+        <em>child’s</em> session view, your correction appears as a new user-role message after its
+        current turn — not injected into the middle of it.</li>
+    <li><strong>Settle notice wakes the parent.</strong> Wait for the child to finish. <strong>Expect:</strong>
+        the supervisor wakes <em>on its own</em> with a notice (“how the child ended” + final summary),
+        reads the outcome, and records progress. You did nothing.</li>
+    <li><strong>Report wakes the parent.</strong> Spawn a second worker whose task is deliberately
+        under-specified (e.g. “write the greeting to the configured location” with no location in
+        Context, and an explicit instruction that this is not discoverable — ask via report).
+        <strong>Expect:</strong> the child calls <code>report</code> with a precise question; the supervisor
+        wakes, answers via <code>send_message</code>; the child completes with the answer as its next
+        turn.</li>
+    <li><strong>Interrupt stops the burn.</strong> Spawn a third worker with a long task, then say:
+        <em>“That one’s off the rails — kill it and log the kill.”</em> <strong>Expect:</strong>
+        <code>interrupt_agent</code>; <code>list_agents</code> then shows it not running (idle/ready);
+        a <code>kill</code> line lands in <code>CHANGELOG.jsonl</code>; no further child activity appears in
+        its session log.</li>
+  </ol>
+  <p><strong>Also verify the persona took:</strong> open the first child’s session in the UI — its behavior
+  should reflect the Dev-Agent persona from your row (e.g. it reports a one-paragraph summary at the
+  end). If the child instead behaves like a generic coding agent and never reports, your
+  <code>persona:</code> block on <code>tool-subagent-dev</code> has an indentation problem — re-validate the
+  preset.</p>
+</div>
+
+<div class="box why">
+  <span class="box-title">Why observation 2 matters more than it looks</span>
+  <p>
+    Steering mid-flight is the capability your design originally assumed it would have to build
+    (kill + fork with a correction). Watching your own correction arrive as the child’s next FIFO turn
+    — context intact — is watching the harness delete that whole machine. The design’s amendment A1
+    recorded exactly this discovery; you just reproduced its evidence.
+  </p>
+</div>
+
+<h2>What exists now</h2>
+<p>
+  Every mechanical piece of supervision works under your hand: spawn, steer, kill, report, settle,
+  enumerate. What’s left is making the <em>supervisor</em> drive them unattended, on its own clock —
+  the loop.
+</p>
+
+<nav class="pager">
+  <a class="prev" href="08-schedule.html">← Chapter 8 — Milestone 3: time</a>
+  <a class="next" href="10-loop.html">Chapter 10 — Milestone 5: the loop →</a>
+</nav>
+</main>
+</body>
+</html>

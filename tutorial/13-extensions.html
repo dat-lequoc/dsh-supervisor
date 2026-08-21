@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13 · Optional extensions: real host plugins — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part III · Chapter 13</span>
+  <span class="spacer"></span>
+  <a href="12-acceptance.html">←</a>
+  <a href="14-troubleshooting.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part III — Beyond native</p>
+  <h1>Optional extensions: real host plugins</h1>
+  <p class="lede">Everything the plan’s M2 wanted — a tool-call delay, per-worker trace files, a
+  blocking <code>wait_for_agents</code>, an HTTP state endpoint — as <em>packaged, restart-surviving</em>
+  plugins installed into your profile. You may never need them; when you do, this is the honest path,
+  with a real installed plugin as your template.</p>
+</header>
+
+<h2>When to reach for this chapter</h2>
+<ul>
+  <li>You want a capability to <strong>survive restarts</strong> (dynamic plugins die with the process).</li>
+  <li>You want it <strong>process-wide</strong> — observing every session, or serving HTTP.</li>
+  <li>You have prototyped it dynamically (chapters 5/11) and it earned permanence.</li>
+</ul>
+<p>The rule of thumb from the toolset’s own docs: dynamic packages “cannot be promoted automatically.
+To keep an experiment, implement a normal … plugin through the regular development workflow”
+(<code>packages/extensions/tool-cordis/README.md</code>). This chapter is that workflow.</p>
+
+<h2>Your template ships with your machine</h2>
+<p>
+  <code>/root/dsh-subagent-agy</code> is a working out-of-tree plugin <em>already installed into your web
+  profile</em> — you saw its wiring in chapter 3. Anatomy:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/dsh-subagent-agy/package.json (the load-bearing fields)</figcaption>
+<pre><code>{
+  "name": "@dsh-external/dsh-subagent-antigravity",
+  "type": "module",
+  "main": "./lib/index.js",
+  "files": ["lib", "cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-subagent": "&gt;=0.1.0-rc.6 &lt;0.3.0",
+    "@deepseek-ai/dsh-tools":   "&gt;=0.1.0-rc.6 &lt;0.3.0"
+  },
+  "scripts": { "build": "bash scripts/build.sh" }
+}</code></pre>
+</figure>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/dsh-subagent-agy/cordis.patch.yml (the whole bundle patch)</figcaption>
+<pre><code># dsh-subagent-antigravity bundle patch: register the plugin entry so
+# `dsh plugin add github:ZEM17/dsh-subagent-agy` (or npm install) mounts it.
+- insert:
+    - id: dsh-subagent-antigravity
+      name: '@dsh-external/dsh-subagent-antigravity'</code></pre>
+</figure>
+<p>The recipe, extracted:</p>
+<ol>
+  <li>An npm package (<code>"type": "module"</code>, built JS in <code>lib/</code>, source in <code>src/</code>).</li>
+  <li>Harness packages as <strong>peer dependencies</strong> — you compile against them; the running dsh
+      provides them (chapter 3: profile module resolution makes bare names resolve to the install).</li>
+  <li>A one-row <code>cordis.patch.yml</code> + the <code>dsh.bundle</code> manifest field → the package
+      <em>is</em> a bundle: listing it in the profile’s <code>dsh.profile.bundles</code> mounts its rows as
+      one more layer.</li>
+  <li>Install = add to the profile’s <code>package.json</code> (<code>"file:/root/my-plugin"</code> under
+      <code>dependencies</code>, name under <code>bundles</code>), run the profile’s package manager install,
+      restart dsh once. (The comment shows the porcelain path too: <code>dsh plugin add …</code>.)</li>
+</ol>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · the build step, demystified</span>
+  <p>
+    A packaged plugin is TypeScript in <code>src/</code>, compiled once to plain JS in <code>lib/</code> —
+    look at <code>scripts/build.sh</code> in the template; it is a handful of lines around
+    <code>tsc</code>. Everything you wrote dynamically in chapters 5/11 becomes valid TypeScript by
+    adding types at the edges: <code>import type { Context } from '@deepseek-ai/cordis'</code> and
+    <code>apply(ctx: Context)</code>. Start by copying the template’s <code>tsconfig.json</code> and build
+    script verbatim.
+  </p>
+</div>
+
+<h2>Scaffold: <code>agi-extras</code>, one package, four small plugins</h2>
+<p>
+  Rather than four packages, make one — <code>/root/agi-extras</code> — whose bundle patch inserts a row
+  per feature (each row addressable, hence individually disable-able from your profile patch):
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>/root/agi-extras layout</figcaption>
+<pre><code>agi-extras/
+  package.json          # name @agi/extras, dsh.bundle → cordis.patch.yml,
+                        # peers: cordis, dsh-tools, dsh-subagent, dsh-host-webserver
+  cordis.patch.yml      # - insert: one row per plugin below
+  tsconfig.json         # copied from the template
+  scripts/build.sh      # copied from the template
+  src/
+    index.ts            # exports the four plugins as named entry points
+    delay.ts            # tools/pre-execute delay
+    trace.ts            # session/event → trace.log
+    wait.ts             # wait_for_agents tool
+    state.ts            # GET /agi/state route</code></pre>
+</figure>
+<p>
+  Below, each plugin’s core — adapted from your plan’s skeletons, <em>corrected against the docs you
+  now know</em>. Each carries its verification pointer; honor the plan’s own rule: <strong>read the
+  referenced doc before finalizing a signature — never guess</strong>.
+</p>
+
+<h3>1 · <code>agi-tool-delay</code> — the waterfall lesson, applied</h3>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>src/delay.ts (core; verify listener params in docs/tool-execution-pipeline.md)</figcaption>
+<pre><code>import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
+
+export const name = 'agi-tool-delay'
+export const inject = ['tools']
+
+function delaySeconds(cwd: string): number {
+  try {
+    const cfg = JSON.parse(readFileSync(join(cwd, '.agi/config.json'), 'utf8'))
+    return Number(cfg.toolDelaySeconds) || 0
+  } catch { return 0 }          // no .agi/ ⇒ no delay: scoped to supervised workspaces
+}
+
+export function apply(ctx: Context): void {
+  ctx.on('tools/pre-execute', async (exec, next) =&gt; {
+    const cwd = exec.agent?.session.header.cwd ?? ''
+    const s = cwd === '' ? 0 : delaySeconds(cwd)
+    if (s &gt; 0) await new Promise(r =&gt; setTimeout(r, s * 1000))
+    return next()               // ← chapter 2's load-bearing line
+  })
+}</code></pre>
+</figure>
+
+<h3>2 · <code>agi-subagent-trace</code> — the firehose lesson, applied</h3>
+<p>
+  Listens to the post-commit append feed — “<code>'session/event'(session, event)</code>… fire-and-forget;
+  observer failures are logged and contained” (<code>docs/subsystems/session.md</code>) — and mirrors
+  child tool calls into greppable per-worker files:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>src/trace.ts (core; verify header fields in docs/subsystems/session.md “SessionHeader”)</figcaption>
+<pre><code>import { appendFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
+
+export const name = 'agi-subagent-trace'
+
+export function apply(ctx: Context): void {
+  ctx.on('session/event', (session, event) =&gt; {
+    try {
+      if (session.header.origin !== 'subagent') return       // children only
+      if (event.type !== 'tool/call' &amp;&amp; event.type !== 'tool/result') return
+      const dir = join(session.header.cwd, '.agi/subagents', String(session.id))
+      mkdirSync(dir, { recursive: true })
+      // leaf fields only — never serialize the live event wholesale
+      const line = { ts: new Date().toISOString(), type: event.type,
+                     summary: JSON.stringify(event).slice(0, 300) }
+      appendFileSync(join(dir, 'trace.log'), JSON.stringify(line) + '\n')
+    } catch { /* tracing must never break the harness */ }
+  })
+}</code></pre>
+</figure>
+
+<h3>3 · <code>agi-wait</code> — <code>wait_for_agents</code>, if you prefer blocking ergonomics</h3>
+<p>
+  Uses two verified contracts: <code>defineTool</code> (chapter 5; full reference
+  <code>docs/subsystems/tools.md</code>) and
+  <code>ctx.subagents.listChildren(parentSessionId, signal?)</code> returning entries with
+  <code>activity: 'running' | 'inactive'</code> (<code>docs/subsystems/subagent.md</code>, “Durable
+  enumeration”). One caution from your plan stands: the base mounts
+  <code>dsh-tool-call-timeout-policy</code>, so either configure its row above your wake interval or
+  return early with “call me again.”
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>src/wait.ts (core)</figcaption>
+<pre><code>import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { Context } from '@deepseek-ai/cordis'
+
+export const name = 'agi-wait'
+export const inject = ['tools', 'subagents']
+
+export function apply(ctx: Context): void {
+  ctx.tools.register(defineTool({
+    name: 'wait_for_agents',
+    description: 'Block until one of your subagents settles or the configured '
+      + 'wake interval (.agi/config.json wakeMinutes) elapses. No arguments.',
+    parameters: {},
+    output: { schema: { type: 'string' },
+              render: (_a, v) =&gt; [{ type: 'text', text: v }] },
+    async execute(_args, exec) {
+      const agent = exec.agent
+      if (agent === undefined) throw new Error('requires an agent session')
+      let wake = 5
+      try {
+        wake = JSON.parse(readFileSync(
+          join(agent.session.header.cwd, '.agi/config.json'), 'utf8'
+        )).wakeMinutes ?? 5
+      } catch {}
+      const deadline = Date.now() + wake * 60_000
+      const before = await ctx.subagents.listChildren(agent.session.id)
+      const running = new Set(before
+        .filter(e =&gt; e.kind === 'child' &amp;&amp; e.activity === 'running')
+        .map(e =&gt; String(e.id)))
+      if (running.size === 0) return 'no running subagents'
+      while (Date.now() &lt; deadline) {
+        if (exec.signal.aborted) return 'cancelled'
+        await new Promise(r =&gt; setTimeout(r, 5000))
+        const now = await ctx.subagents.listChildren(agent.session.id)
+        const settled = now.filter(e =&gt;
+          running.has(String(e.id)) &amp;&amp; e.activity !== 'running')
+        if (settled.length &gt; 0) {
+          return 'settled: ' + settled.map(e =&gt; String(e.id)).join(', ')
+        }
+      }
+      return `wake interval (${wake} min) elapsed; children still running`
+    },
+  }))
+}</code></pre>
+</figure>
+<p class="muted">
+  Plane note: registering into the host <code>tools</code> registry from a host plugin makes the tool
+  visible everywhere. If you want it supervisor-only, keep the host plugin providing nothing and add
+  a preset row instead — or accept global visibility; it is harmless to agents without children.
+</p>
+
+<h3>4 · <code>agi-state-route</code> — <code>.agi/</code> over HTTP</h3>
+<p>
+  For dashboards beyond the pill. The route contract is exactly chapter’s 3 web server:
+  <code>ctx.webServer.register({ kind, path, handler })</code> returns a disposer; duplicates throw
+  (<code>docs/subsystems/web-server.md</code>). Path-validate the <code>ws</code> query parameter — the
+  server is unauthenticated localhost.
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>src/state.ts (sketch)</figcaption>
+<pre><code>export const name = 'agi-state-route'
+export const inject = ['webServer']
+
+export function apply(ctx) {
+  ctx.webServer.register({
+    kind: 'exact', path: '/agi/state',
+    async handler(req, res) {
+      // parse ?ws=, require absolute existing dir containing .agi/,
+      // read config/GOAL/NOTES + tail of the jsonl files, respond JSON.
+    },
+  })
+}</code></pre>
+</figure>
+
+<h2>Install into the profile</h2>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>wiring agi-extras into /root/.dsh/profiles/web</figcaption>
+<pre><code>cd /root/agi-extras &amp;&amp; npm run build        # emit lib/
+
+# 1. profile package.json — add BOTH:
+#    "dependencies": { ..., "@agi/extras": "file:/root/agi-extras" }
+#    "dsh": { "profile": { "bundles": [ ..., "@agi/extras" ] } }
+
+# 2. install where the profile resolves modules:
+cd /root/.dsh/profiles/web &amp;&amp; pnpm install
+
+# 3. one restart (bundle layers compose at boot):
+tmux attach -t dsh    # Ctrl-C → dsh web → detach</code></pre>
+</figure>
+<div class="box warn">
+  <span class="box-title">Bundle layers are boot-time</span>
+  <p>
+    Unlike your live-watched patch file, the <em>bundle list</em> composes at boot — hence the one
+    restart. Afterwards, iteration is: rebuild <code>lib/</code>, restart. (Compare the antigravity
+    plugin’s own README/scripts for its selftest habits — a good pattern to copy.) To disable one
+    feature without uninstalling, add an id-targeted <code>disabled: true</code> patch for its row in
+    your profile patch — that part is live.
+  </p>
+</div>
+
+<div class="box test">
+  <span class="box-title">Test it live — per plugin</span>
+  <ol>
+    <li><strong>delay:</strong> set <code>"toolDelaySeconds": 2</code> in the lab’s config; a tool call in a
+        <code>.agi</code>-workspace session visibly lags ~2 s (compare <code>tool/call</code>→<code>tool/result</code>
+        timestamps in the session log); a session elsewhere doesn’t.</li>
+    <li><strong>trace:</strong> spawn any worker; <code>.agi/subagents/&lt;id&gt;/trace.log</code> fills with one
+        line per child tool call.</li>
+    <li><strong>wait:</strong> in the supervisor: “spawn a 60-second sleeper, then call wait_for_agents” —
+        returns early on settle; with a long child, returns at <code>wakeMinutes</code>.</li>
+    <li><strong>state:</strong> <code>curl -s 'http://127.0.0.1:3080/agi/state?ws=/root/agi-lab' | python3 -m json.tool</code></li>
+    <li><strong>teardown proof:</strong> disable a row via profile patch → its capability vanishes without a
+        rebuild (effects unwound — chapter 2, idea 5, at packaged scale).</li>
+  </ol>
+</div>
+
+<h2>Promoting the pill (last word on UI)</h2>
+<p>
+  A <em>client</em> half in a packaged plugin is where real frontend tooling begins (the shipped UI
+  plugins are dual-face packages with a bundling pipeline — see any
+  <code>packages/client/ui-*</code>). Before walking that road, remember the pill costs two tool calls to
+  re-run after a restart — and a Creator-mode agent can be <em>asked to do that</em>. For a 24/7 system,
+  “the supervisor re-runs its own pill on boot” is a perfectly good persona line; full client
+  packaging is rarely worth it for one overlay div.
+</p>
+
+<nav class="pager">
+  <a class="prev" href="12-acceptance.html">← Chapter 12 — Acceptance run</a>
+  <a class="next" href="14-troubleshooting.html">Chapter 14 — Troubleshooting & reference →</a>
+</nav>
+</main>
+</body>
+</html>

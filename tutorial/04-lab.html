@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4 · Your lab — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part I · Chapter 4</span>
+  <span class="spacer"></span>
+  <a href="03-harness.html">←</a>
+  <a href="05-creator-mode.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part I — Foundations</p>
+  <h1>Your lab</h1>
+  <p class="lede">A guided tour of the deployment you already have running — the process, the home
+  directory, the sessions on disk, the web UI — and the short list of safety rules that keep it
+  healthy while you experiment on it for the rest of this course.</p>
+</header>
+
+<h2>The running process</h2>
+<p>
+  A <code>dsh web</code> is already running on this machine inside a tmux session named <code>dsh</code>.
+  Verify both, from any terminal:
+</p>
+<pre><code>tmux ls                       # expect a session named: dsh
+pgrep -af 'dsh web'           # expect: node /usr/local/bin/dsh web
+</code></pre>
+<p>
+  It serves the web UI at <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a> (the default —
+  <code>/root/deepseek-harness/README.md</code>, “Run”). The left sidebar lists workspaces and their
+  sessions; clicking a session shows its full conversation; the composer at the bottom talks to that
+  session’s agent. When you start a new session you pick a <em>preset</em> — this picker is where your
+  <code>main-agent</code> will appear after chapter 6.
+</p>
+
+<div class="box warn">
+  <span class="box-title">Rule 1 — never start a second dsh against the same home</span>
+  <p>
+    One <code>$DSH_HOME</code>, one process. A second <code>dsh</code> pointed at the same home corrupts live
+    session logs. If you need the process restarted (rare in this course — the profile patch is
+    hot-reloaded), do it inside the existing tmux session:
+  </p>
+<pre><code>tmux attach -t dsh        # Ctrl-C the running process, then: dsh web
+                          # detach again with Ctrl-b d</code></pre>
+</div>
+
+<h2>The harness home: <code>/root/.dsh</code></h2>
+<p>
+  <code>$DSH_HOME</code> is unset on this machine, so the home defaults to <code>~/.dsh</code> =
+  <code>/root/.dsh</code>. Everything mutable lives here:
+</p>
+<pre><code>/root/.dsh/
+  profiles/web/
+    package.json        ← which bundles this profile stacks (chapter 3)
+    cordis.patch.yml    ← YOUR live-watched patch layer (currently: [])
+  .agent-presets/       ← locally authored presets land here (chapter 6; empty now)
+  sessions/             ← every session, as directories of JSONL logs
+  settings.yaml         ← user settings (model routes etc.)
+  .credentials.yaml     ← managed credentials
+  storages/             ← small JSON caches (session projections, workspaces)</code></pre>
+<p>Three of these you will touch in this course, and only three:</p>
+<ul>
+  <li><code>profiles/web/cordis.patch.yml</code> — chapter 8 adds the schedule overlay rows here.</li>
+  <li><code>.agent-presets/</code> — chapter 6 creates <code>main-agent/</code> here (via the roster, not by hand).</li>
+  <li><code>sessions/</code> — read-only for you, but <em>very</em> instructive. Next section.</li>
+</ul>
+
+<h2>Sessions on disk — your free trace viewer</h2>
+<p>
+  Chapter 3 claimed a session is “literally a JSONL file on disk.” Prove it to yourself. Sessions are
+  grouped by workspace directory (the path with slashes turned into dashes):
+</p>
+<pre><code>ls /root/.dsh/sessions/
+# --root-dev--   --root-agi-testbed--   ...one directory per workspace
+
+ls /root/.dsh/sessions/--root-dev--/
+# session-ab70d480-...  one directory per session
+
+# peek at one (each line is one durable event):
+head -3 /root/.dsh/sessions/--root-dev--/session-*/events.jsonl 2>/dev/null \
+  || find /root/.dsh/sessions/--root-dev-- -name '*.jsonl' | head -3</code></pre>
+<p>
+  Open any of those files and you will recognize the vocabulary from chapter 3: <code>turn/start</code>,
+  <code>user/message</code>, <code>tool/call</code>, <code>tool/result</code>, <code>assistant/message</code>,
+  <code>turn/end</code> — one JSON object per line, append-only. Two consequences for your supervisor:
+</p>
+<ul>
+  <li><strong>Worker inspection is grep.</strong> When the Main Agent wants to know what a worker has been
+      doing, it can read the worker’s session log with the same shell tools it already has. No custom
+      trace plugin required — this is the native-first replacement for the plan’s
+      <code>subagent-trace</code>.</li>
+  <li><strong>The web UI shows the same thing, rendered.</strong> Every child session appears in the
+      sidebar like any other session, with its full conversation and tool calls. Your “Subagents tab”
+      already exists; it is called the session list.</li>
+</ul>
+
+<div class="box test">
+  <span class="box-title">Test it live — read a real session log</span>
+  <ol>
+    <li>In the web UI, open any existing session and note roughly what happened in it.</li>
+    <li>Find its file: <code>grep -rl "some distinctive phrase from that chat" /root/.dsh/sessions/ | head -1</code></li>
+    <li><code>grep -c 'tool/call' &lt;that file&gt;</code> — count its tool calls; skim one with
+        <code>grep -m1 'tool/call' &lt;file&gt; | head -c 400</code>.</li>
+  </ol>
+  <p><strong>Expected:</strong> the JSONL mirrors the rendered conversation event for event. When this feels
+  obvious, you understand the harness’s single most important data structure.</p>
+</div>
+
+<h2>The workspace for this course</h2>
+<p>
+  Agents run <em>in a workspace</em> (the session’s <code>cwd</code>). Your supervisor is portable — all its
+  state lives in <code>&lt;workspace&gt;/.agi/</code> — so pick a scratch workspace for the build and testing
+  chapters. Create it now:
+</p>
+<pre><code>mkdir -p /root/agi-lab
+cd /root/agi-lab &amp;&amp; git init -q .   # optional, but lets you diff .agi/ changes</code></pre>
+<p>
+  In the web UI, “new session” lets you choose this directory as the workspace. Everything the
+  supervisor and its workers write lands under it. (Old experiments live in
+  <code>/root/agi-final</code>, <code>/root/agi-testbed</code>, etc. — earlier attempts at this same system.
+  Feel free to read their <code>.agi/</code> trees for flavor; we start clean.)
+</p>
+
+<h2>The safety rules</h2>
+<p>All of them, in one place. They come from the shipped skills and the deployment’s own comments, not from caution theater:</p>
+<table>
+  <tr><th>Rule</th><th>Why</th></tr>
+  <tr><td><strong>Never edit the shipped presets or the harness checkout.</strong> The <code>agent-presets</code> directory beside the install and <code>/root/deepseek-harness</code> are read-only for you. Copy, then edit the copy.</td>
+      <td>An upgrade overwrites the install; corrupting the <code>cordis</code> preset disables Creator mode itself. (<code>editing-cordis-compositions</code>, “Off-limits”.)</td></tr>
+  <tr><td><strong>Never start a second dsh on the same <code>$DSH_HOME</code>.</strong></td>
+      <td>Corrupts live session logs.</td></tr>
+  <tr><td><strong>Host-plane changes go in <code>profiles/web/cordis.patch.yml</code>, nowhere else.</strong> Mind the YAML: duplicate row ids are fatal at compose time.</td>
+      <td>It is the one live-watched, user-owned layer; mistakes are undoable by reverting the file.</td></tr>
+  <tr><td><strong>Treat Creator-mode sessions like shell access.</strong></td>
+      <td>The <code>cordis</code> preset’s own header says so: its tools evaluate model-written JavaScript against the live runtime. (<code>apps/cli/config/agent-presets/cordis/agent.cordis.yml</code>, “TRUST”.)</td></tr>
+  <tr><td><strong>Back up before big edits:</strong> <code>cp /root/.dsh/profiles/web/cordis.patch.yml{,.bak}</code></td>
+      <td>A broken patch layer leaves the last good tree running, but you want the easy way back.</td></tr>
+</table>
+
+<h2>Meet the API key reality</h2>
+<p>
+  Model calls need credentials, which this deployment already has configured
+  (<code>/root/.dsh/.credentials.yaml</code>, plus whatever <code>settings.yaml</code> routes). You never
+  hardcode keys anywhere in this course; if a model route ever fails, that file and the web UI’s
+  Settings → Models page are where to look.
+</p>
+
+<h2>Your dashboard habits</h2>
+<p>Three habits worth forming now, since every later “Test it live” uses them:</p>
+<ol>
+  <li><strong>Watch the process:</strong> <code>tmux attach -t dsh</code> (read the server log; detach with
+      <kbd>Ctrl-b</kbd> <kbd>d</kbd>). Mount errors, patch reload failures, and plugin crashes print here.</li>
+  <li><strong>Watch the tree:</strong> <code>dsh --profile web --dump-config | grep -n &lt;row-id&gt;</code> to confirm
+      a row you added actually composes. (Run it from a normal shell; it does not boot a second server.)</li>
+  <li><strong>Watch the disk:</strong> <code>ls -lt /root/.dsh/sessions/--root-agi-lab--/ | head</code> to see
+      sessions appear as you spawn workers.</li>
+</ol>
+
+<div class="box test">
+  <span class="box-title">Test it live — lab checklist</span>
+  <p>Before moving on, confirm all five:</p>
+  <ol>
+    <li><code>tmux ls</code> shows <code>dsh</code>, and <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a> loads.</li>
+    <li><code>cat /root/.dsh/profiles/web/cordis.patch.yml</code> prints <code>[]</code> (or your existing patches).</li>
+    <li><code>ls /root/.dsh/.agent-presets/</code> is empty (your <code>main-agent</code> is not born yet).</li>
+    <li><code>/root/agi-lab</code> exists.</li>
+    <li>You opened one session JSONL and recognized the event types.</li>
+  </ol>
+</div>
+
+<nav class="pager">
+  <a class="prev" href="03-harness.html">← Chapter 3 — Anatomy of the harness</a>
+  <a class="next" href="05-creator-mode.html">Chapter 5 — Creator mode →</a>
+</nav>
+</main>
+</body>
+</html>

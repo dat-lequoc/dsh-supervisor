@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3 · Anatomy of the harness — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part I · Chapter 3</span>
+  <span class="spacer"></span>
+  <a href="02-cordis.html">←</a>
+  <a href="04-lab.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part I — Foundations</p>
+  <h1>Anatomy of the harness</h1>
+  <p class="lede">How a running <code>dsh</code> is assembled from layers, where sessions and agents
+  live, what a “turn” actually is, and — most important for you — the two-plane rule that decides
+  where every change belongs.</p>
+</header>
+
+<h2>From nothing to a running product: layers</h2>
+<p>
+  A running <code>dsh</code> is one big Cordis plugin tree, and that tree is <em>composed at boot from
+  ordered layers of patches applied to an empty list</em>. Nothing is hardcoded; even “the product” is
+  just the result of the layering:
+</p>
+<pre><code>[]                                  ← the profile root: literally an empty list
+ + @deepseek-ai/dsh-base            ← bundle: model adapters, tools, persistence,
+ |                                     sandbox, subagent machinery, jobs, goals ...
+ + @deepseek-ai/dsh-web-app         ← bundle: the browser application
+ + @dsh-external/…-antigravity      ← bundle: a third-party plugin (installed here!)
+ + profiles/web/cordis.patch.yml    ← YOUR profile patch layer (currently [])
+ + ~/.dsh/cordis.patch.yml          ← home-level patch layer (if present)
+ + --patch overlays                 ← command-line extras</code></pre>
+<p>Each concept, precisely:</p>
+<ul>
+  <li>A <strong>profile</strong> is a directory under <code>$DSH_HOME/profiles/&lt;name&gt;</code> holding a
+      <code>package.json</code> (which bundles to stack, plus out-of-tree plugin dependencies) and your
+      own <code>cordis.patch.yml</code>. Templates <code>web</code> and <code>headless</code> auto-initialize.
+      <span class="muted">(Source: <code>packages/boot/app-boot/README.md</code>, “Profiles”.)</span></li>
+  <li>A <strong>bundle</strong> is an npm package whose manifest declares
+      <code>"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }</code> — a distributable stack of
+      config rows plus the code they mount.</li>
+  <li>A <strong>patch</strong> targets a row <em>by id</em> and replaces its whole config, or <code>insert</code>s new
+      rows. Your profile’s patch file is watched live: edit it and the tree recomposes without a
+      restart. <span class="muted">(Same source: “Every profile boot keeps <code>cordis.patch.yml</code> live
+      through <code>watchUserPatches</code>.”)</span></li>
+</ul>
+<p>Your actual web profile on this machine — worth reading now because chapter 8 edits it:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/.dsh/profiles/web/package.json</figcaption>
+<pre><code>{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@dsh-external/dsh-subagent-antigravity"
+      ]
+    }
+  },
+  "dependencies": {
+    "@dsh-external/dsh-subagent-antigravity": "file:/root/dsh-subagent-agy"
+  }
+}</code></pre>
+</figure>
+<p>
+  Notice the third bundle: someone already installed an out-of-tree plugin into this very profile,
+  as a plain <code>file:</code> dependency pointing at <code>/root/dsh-subagent-agy</code>. That package is
+  the exact pattern chapter 13 follows for your own host plugins — proof by example that you never
+  need to touch the harness checkout to extend it.
+</p>
+<p>To see the fully composed tree your machine boots, there is a dump command (read-only, safe):</p>
+<pre><code>dsh --profile web --dump-config</code></pre>
+<p>
+  Any row it prints can be replaced or disabled by a patch of your own. That single sentence is the
+  harness’s entire “configuration API.”
+</p>
+
+<h2>The two planes: host composition vs. agent preset</h2>
+<p>
+  Within that one process tree there are two kinds of place a plugin row can live, and choosing
+  correctly is the most consequential decision you will make in this course. The Creator-mode skill
+  states the criterion crisply:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/editing-cordis-compositions/SKILL.md (lines 17–23)</figcaption>
+<pre><code>Two planes, and the choice is not about how "agent-related" something feels —
+it is about whether the thing must be shared.
+
+HOST COMPOSITION. The registries themselves (tools, systemPrompt, agents,
+agent-loop, sessions), anything crossing sessions (persistence, session query,
+storage, settings, credentials, telemetry), the sandbox and approval stack, the
+model route, and the subagent registry with its spawn/fork backends. One
+instance for the process.
+
+AGENT PRESET. What one session contributes to those registries: its tool
+plugins, its persona and prompt sections, its compaction policy. One instance
+per session, mounted under that session's scope and unwound with it.</code></pre>
+</figure>
+<p>Applied to your supervisor, once and for all:</p>
+<table>
+  <tr><th>Thing</th><th>Plane</th><th>Why</th></tr>
+  <tr><td>Supervisor persona, protocol text</td><td>Preset</td><td>One session’s identity.</td></tr>
+  <tr><td><code>subagent</code>, <code>send_message</code>, <code>goal</code>, <code>todo</code> tools</td><td>Preset rows (consuming host services)</td><td>The preset decides <em>whether this agent can call them</em>; the machinery behind them is host-side.</td></tr>
+  <tr><td>The subagent registry + spawn/fork backends</td><td>Host (already there)</td><td>Cross-session singleton; the browser queries it too.</td></tr>
+  <tr><td>Schedule service + tools (chapter 8)</td><td>Host — two rows in your profile patch</td><td>Not mounted by default; the shipped overlay adds it process-wide.</td></tr>
+  <tr><td>Any future custom plugin (chapter 13)</td><td>Host, via profile dependency</td><td>Must observe every session / register process-wide capability.</td></tr>
+</table>
+
+<div class="box warn">
+  <span class="box-title">The collision rule, now in full</span>
+  <p>
+    A preset row that <em>publishes a service</em> without an isolate realm publishes it process-globally —
+    and the second session mounting the preset collides with the first. The preset mounter
+    <em>rejects</em> this instead of letting it blow up later, with a message that names the offending
+    service. You met the fix in chapter 2 (wrap provider + consumers in one
+    <code>isolate</code> group); the practical consequence is simpler: <strong>copy <code>standard</code> and
+    keep its groups intact</strong>, and you inherit correct realms for free.
+  </p>
+</div>
+
+<h2>Agent presets: sessions choose their composition</h2>
+<p>
+  A <strong>preset</strong> is a directory holding one <code>agent.cordis.yml</code> (the rows) and a
+  <code>preset.yml</code> (display name, description). When you start a session in the web UI, you pick a
+  preset; the roster mounts that composition for the session. Four ship with the deployment —
+  <code>standard</code>, <code>code</code>, <code>minimal</code>, <code>cordis</code> (Creator mode) — living beside the
+  install, and locally authored ones live under <code>$DSH_HOME/.agent-presets/&lt;id&gt;/</code>.
+</p>
+<p>
+  A service called the <strong>roster</strong> (<code>ctx.agentPresets</code>) owns discovery, authoring, and
+  validation. Its verbs — which you will call in chapter 6 — come straight from its source:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/preset/agent-presets/src/index.ts (abridged signatures)</figcaption>
+<pre><code>async list(): Promise&lt;AgentPreset[]&gt;        // every preset: id, trust, real path
+async resolve(id?): Promise&lt;AgentPreset&gt;    // one preset, with the file path to edit
+async read(id): Promise&lt;string&gt;             // its composition text
+async copy(from, id, name?): Promise&lt;void&gt;  // THE authoring write: copy a whole preset
+async remove(id): Promise&lt;void&gt;             // delete a locally authored preset
+async standingKeyFor(id?): Promise&lt;ScopeKey&gt;
+     // mount-validate: composes the preset's plugin subtree FOR REAL,
+     // exactly like a session start minus the agent — the check.</code></pre>
+</figure>
+<div class="box why">
+  <span class="box-title">Why <code>copy()</code> instead of writing YAML from scratch</span>
+  <p>
+    “A composition written from scratch usually forgets a group realm or a consumer row; a copy
+    starts loadable” (<code>editing-cordis-compositions</code> skill). <code>copy()</code> also validates the
+    id, lands the copy in the writable root wherever this deployment configured it, and rolls back on
+    failure. Starting from <code>standard</code> is not laziness — it is the supported authoring path.
+  </p>
+</div>
+
+<h2>Inside a session: the log, the turn, the step</h2>
+<p>
+  Now zoom into one running agent. Three nouns carry everything:
+</p>
+<ul>
+  <li>A <strong>session</strong> is an append-only log of durable events (<code>user/message</code>,
+      <code>assistant/message</code>, <code>tool/call</code>, <code>tool/result</code>, <code>turn/start</code>…), plus a
+      header (workspace <code>cwd</code>, parent lineage, creation time). It is literally a JSONL file on
+      disk — you will open one in chapter 4.</li>
+  <li>A <strong>step</strong> is one model request plus the tool calls it makes.</li>
+  <li>A <strong>turn</strong> is zero or more steps: it opens when input is claimed and closes when nothing
+      more is owed.</li>
+</ul>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/architecture.md (“Turn flow”, abridged)</figcaption>
+<pre><code>turn/start
+  claim next-step input plus one queued message
+  assemble prompt sections + tool schemas
+  -&gt; agent/pre-step            (waterfall: rewrite or reject what the model sees)
+     step/start
+     agent/request -&gt; llm/stream -&gt; assistant/message
+     tool/call* -&gt; tools/pre-execute -&gt; tools/execute -&gt; tools/post-execute -&gt; tool/result*
+     step/end
+     tools owe another request, or next-step input arrived -&gt; next step
+  -&gt; agent/turn-stopping
+turn/end</code></pre>
+</figure>
+<p>Two rules fall out of this that your supervisor design leans on:</p>
+<ul>
+  <li><strong>Model-visible means logged.</strong> Anything that reaches a model request must be
+      reconstructable from the session log — a runtime invariant. This is why a child agent’s entire
+      behavior is inspectable after the fact from its log alone, which is your native replacement for
+      the plan’s custom <code>trace.log</code>.</li>
+  <li><strong>Input arrives through one inbox.</strong> An agent has a single FIFO inbox; every message —
+      yours, a schedule reminder, a child’s report, a settle notice — becomes a turn in one observable
+      order. “Sleep” is an empty inbox; “wake” is a delivery. There is no other scheduler.</li>
+</ul>
+
+<h2>The tool pipeline (where policy lives)</h2>
+<p>
+  When a model asks to run a tool, the call travels a guarded pipeline — all waterfalls, all
+  extensible by plugins:
+</p>
+<pre><code>tools/pre-execute   → allow / deny / ask / transform / delay   (policy seat)
+guards              → monotonic checks
+tools/execute       → around-dispatch wrappers (timeouts live here)
+tools/post-execute  → inspect or replace the result
+tools/result        → the immutable outcome</code></pre>
+<p>
+  You will not touch this pipeline in the native-first build, but you should know it exists for two
+  reasons: it is where chapter 13’s optional tool-delay plugin would sit
+  (<code>docs/tool-execution-pipeline.md</code>), and it explains the sandbox/approval prompts you see in
+  the web UI — those are shipped <code>pre-execute</code> policies asking you to decide.
+</p>
+
+<h2>Where new behavior goes — the official map</h2>
+<p>The architecture doc closes with a table you should bookmark; the rows you will actually use:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/architecture.md (“Where new behavior goes”, selected rows)</figcaption>
+<pre><code>| Goal                                        | Mechanism                     |
+|---------------------------------------------|-------------------------------|
+| Add a model-facing capability               | register on ctx.tools         |
+| Give one session a different capability set | compose an agent preset       |
+| Add a human command                         | register on ctx.commands      |
+| Add background work                         | register on ctx.jobs          |
+| Intercept a request, tool, or turn          | its agent/* or tools/* event  |
+| Add model-facing context                    | agent.inject()                |</code></pre>
+</figure>
+
+<h2>What you can now explain</h2>
+<div class="box test">
+  <span class="box-title">Check your understanding</span>
+  <ol>
+    <li>Why does adding the schedule capability (chapter 8) go in the <em>profile patch</em>, but the
+        supervisor persona goes in a <em>preset</em>? <span class="muted">(Schedule is a service + session
+        driver shared by the process — host plane. The persona is one session’s contribution — agent
+        plane.)</span></li>
+    <li>Your supervisor restarts. Why is nothing lost even with no custom persistence code?
+        <span class="muted">(Sessions are append-only logs on disk; the harness resumes them. Plus your
+        <code>.agi/</code> files are ordinary files.)</span></li>
+    <li>Where would you look to see every plugin row your machine actually boots?
+        <span class="muted"><code>dsh --profile web --dump-config</code>.</span></li>
+  </ol>
+</div>
+
+<nav class="pager">
+  <a class="prev" href="02-cordis.html">← Chapter 2 — Cordis from scratch</a>
+  <a class="next" href="04-lab.html">Chapter 4 — Your lab →</a>
+</nav>
+</main>
+</body>
+</html>

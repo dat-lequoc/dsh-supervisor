@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build an Always-On Supervisor Agent on DeepSeek Harness — from scratch</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Always-On Supervisor on DSH</span>
+  <span class="spacer"></span>
+  <a href="01-big-picture.html">Start →</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">A hands-on course, from the ground up</p>
+  <h1>Build an Always-On Supervisor Agent on DeepSeek Harness</h1>
+  <p class="lede">
+    Fifteen chapters that take you from “what is a plugin?” to a running 24/7 Main Agent
+    that spawns, watches, steers, and kills worker subagents — built almost entirely out of
+    parts the harness already ships. Every chapter ends with something you can test live
+    in your own running <code>dsh web</code>.
+  </p>
+</header>
+
+<h2>The philosophy of this course</h2>
+<p>
+  Your design documents (<code>/root/dev/DESIGN.md</code> and <code>/root/dev/IMPLEMENTATION_PLAN.md</code>)
+  describe a supervisor built from a preset plus five custom plugins. This course deliberately takes a
+  <strong>native-first</strong> path instead: we reuse and configure what the harness already ships, and we
+  write custom code only where nothing native exists. That gets you to a working system dramatically
+  faster, and — more importantly for learning — every native piece you configure is a piece you
+  end up understanding.
+</p>
+<p>Concretely, here is what the design wanted and what the harness already provides:</p>
+<table>
+  <tr><th>Supervisor need</th><th>Native mechanism (already running in your dsh)</th><th>Custom code?</th></tr>
+  <tr><td>Spawn a background worker</td><td>The <code>subagent</code> tool (continuable in-process child)</td><td>No</td></tr>
+  <tr><td>Steer a running worker</td><td><code>send_message</code> — queues a correction as the child’s next turn</td><td>No</td></tr>
+  <tr><td>Kill a worker</td><td><code>interrupt_agent</code> + never message it again (zero further token burn)</td><td>No</td></tr>
+  <tr><td>Worker blocked on a question</td><td>The child’s native <code>report</code> tool — wakes the parent</td><td>No</td></tr>
+  <tr><td>Wake when a worker finishes</td><td>Native settle notice, delivered to the parent unconditionally</td><td>No</td></tr>
+  <tr><td>Wake on a timer (patience / periodic check)</td><td><code>schedule_create</code> (an opt-in overlay: two config rows)</td><td>No — config only</td></tr>
+  <tr><td>Track the locked goal</td><td>The <code>goal</code> tool + the web UI’s goal display</td><td>No</td></tr>
+  <tr><td>Inspect what a worker did</td><td>Children are ordinary sessions in the web GUI, and ordinary JSONL files on disk</td><td>No</td></tr>
+  <tr><td>The supervisor personality & protocol</td><td>An <em>agent preset</em> — a YAML file you author</td><td>No code — YAML + prose</td></tr>
+  <tr><td>Durable state (goal, notes, questions, changelog)</td><td>Plain files in <code>.agi/</code>, written with the shell/fs tools every agent has</td><td>No — convention only</td></tr>
+  <tr><td>Extra UI, trace files, a no-argument wait tool</td><td>—</td><td>Optional, chapter 13</td></tr>
+</table>
+<p>
+  So the “build” is: <strong>one preset you author + two schedule rows + a persona that encodes the
+  protocol + a file convention</strong>. Everything else is understanding — which is the point.
+</p>
+
+<div class="box why">
+  <span class="box-title">Why native-first wins here</span>
+  <p>
+    Custom machinery is code you must debug <em>while also</em> debugging your agent’s behavior. When the
+    spawn/steer/kill/report loop is the harness’s own, a failure can only be in your prompt or your
+    protocol — a much smaller search space. You can always add the custom extras later
+    (chapter 13 shows exactly how, using a real out-of-tree plugin already installed on this machine
+    as the template).
+  </p>
+</div>
+
+<h2>What you need</h2>
+<ul>
+  <li>This machine, as it is: a <code>dsh web</code> already runs in the tmux session <code>dsh</code>, serving
+      <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a>. Chapter 4 tours it.</li>
+  <li>The harness source checkout at <code>/root/deepseek-harness</code> (version 0.1.0-rc.7) — we read it
+      constantly; we never modify it.</li>
+  <li>No TypeScript experience. Chapters carry <span style="color:var(--box-ts);font-weight:650">TypeScript corner</span>
+      boxes that teach exactly the syntax you are looking at, when you are looking at it.</li>
+</ul>
+
+<h2>How each chapter works</h2>
+<ul>
+  <li><strong>Narrative first</strong> — concepts in prose, then the real code.</li>
+  <li><strong>Cited code</strong> — every claim about the harness points at a file (and usually lines) in
+      <code>/root/deepseek-harness</code> so you can verify it yourself. Code blocks are labeled
+      <span style="background:#dcecdf;color:#14532d;font-size:.75rem;font-weight:700;padding:0 .4em;border-radius:3px">CITED</span>
+      (exists in the repo — go read it) or
+      <span style="background:#dbe7f6;color:#1e3a5f;font-size:.75rem;font-weight:700;padding:0 .4em;border-radius:3px">YOURS</span>
+      (you will write/paste it).</li>
+  <li><strong>Test it live</strong> — a green box at the end of every milestone with the exact steps and the
+      expected observation. Do not continue until it passes; later chapters assume it.</li>
+</ul>
+
+<p class="part-label">Part I — Understand the machine (chapters 1–5)</p>
+<ol class="toc" start="1">
+  <li><a href="01-big-picture.html">The big picture</a><span class="tag">concepts</span>
+      <span class="desc">What an always-on supervisor is, the sleep/wake loop, and the exact inventory of native parts we will assemble.</span></li>
+  <li><a href="02-cordis.html">Cordis from scratch</a><span class="tag">concepts</span>
+      <span class="desc">Plugins, contexts, services, <code>inject</code>, events, effects, waterfalls — the five ideas everything else stands on. Includes your JavaScript/TypeScript bootstrapping.</span></li>
+  <li><a href="03-harness.html">Anatomy of the harness</a><span class="tag">concepts</span>
+      <span class="desc">Profiles, bundles, patch layers, the two planes (host vs. preset), the session log, and the turn flow. Where every kind of change belongs.</span></li>
+  <li><a href="04-lab.html">Your lab</a><span class="tag">hands-on</span>
+      <span class="desc">Tour the running deployment: tmux, <code>$DSH_HOME</code>, sessions on disk, the web UI, and the safety rules that keep you from bricking it.</span></li>
+  <li><a href="05-creator-mode.html">Creator mode and the Cordis toolset</a><span class="tag">testable</span>
+      <span class="desc">The self-referential preset: seven <code>cordis_*</code> tools that inspect and extend the live runtime. You define, run, and remove your first dynamic plugin.</span></li>
+</ol>
+
+<p class="part-label">Part II — Build the supervisor (chapters 6–12)</p>
+<ol class="toc" start="6">
+  <li><a href="06-preset.html">Milestone 1 — Author the <code>main-agent</code> preset</a><span class="tag">testable</span>
+      <span class="desc">Copy <code>standard</code>, name it, validate the mount, start a session on it. Your supervisor exists.</span></li>
+  <li><a href="07-brain.html">Milestone 2 — The brain: persona, protocol, and the <code>.agi/</code> state contract</a><span class="tag">testable</span>
+      <span class="desc">Write the supervisor persona (goal ceremony, question protocol, file discipline) and test the ceremony end-to-end with the native goal tool.</span></li>
+  <li><a href="08-schedule.html">Milestone 3 — Time: the schedule overlay</a><span class="tag">testable</span>
+      <span class="desc">Two rows in your profile patch give every session <code>schedule_create</code>. Patience timers and periodic wake-ups with zero code.</span></li>
+  <li><a href="09-delegation.html">Milestone 4 — Workers: spawn, steer, kill, report</a><span class="tag">testable</span>
+      <span class="desc">The native continuable subagent loop, exercised by hand: all five observations of the design’s M0 smoke test, plus a dedicated <code>spawn_dev_agent</code> row with its own persona.</span></li>
+  <li><a href="10-loop.html">Milestone 5 — The supervision loop</a><span class="tag">testable</span>
+      <span class="desc">Wire settle notices + schedule wakes + session-log inspection into the full sleep/wake/triage cycle. Forced steer, forced kill, forced unanswered question.</span></li>
+  <li><a href="11-ui.html">Milestone 6 — UI, the minimal way</a><span class="tag">testable</span>
+      <span class="desc">What the shipped web UI already shows you (sessions, children, goal, plan). Then one optional 40-line dynamic client plugin that adds a status pill — reusing shipped slots.</span></li>
+  <li><a href="12-acceptance.html">Milestone 7 — Acceptance run</a><span class="tag">testable</span>
+      <span class="desc">A scripted end-to-end goal with every behavior forced once, plus the restart-resilience check. Your definition of done.</span></li>
+</ol>
+
+<p class="part-label">Part III — Beyond native (chapters 13–14)</p>
+<ol class="toc" start="13">
+  <li><a href="13-extensions.html">Optional extensions: real host plugins</a><span class="tag">advanced</span>
+      <span class="desc">When native isn’t enough: a <code>wait_for_agents</code> tool, a trace tap, a state route — packaged as an out-of-tree plugin and installed into your profile, following a real installed example.</span></li>
+  <li><a href="14-troubleshooting.html">Troubleshooting & reference</a><span class="tag">reference</span>
+      <span class="desc">The failure catalog, a glossary, and the map of harness docs worth reading next.</span></li>
+</ol>
+
+<h2>A note on your existing plan</h2>
+<p>
+  <code>IMPLEMENTATION_PLAN.md</code> predates two things: the design’s own simplifications (S1–S4) and
+  your decision to build native-first. Where this course and the plan disagree — custom
+  <code>agi-spawn</code> vs. the shipped subagent tool, <code>brief.md</code> files vs. prompt-carried tasks,
+  custom tabs vs. the shipped session views — <strong>this course reflects the current decision</strong> and
+  says so in place. The plan remains useful as the reference for the “maximal” custom build,
+  which chapter 13 revisits.
+</p>
+
+<nav class="pager">
+  <a class="next" href="01-big-picture.html">Chapter 1 — The big picture →</a>
+</nav>
+</main>
+</body>
+</html>

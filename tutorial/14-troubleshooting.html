@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14 · Troubleshooting & reference — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part III · Chapter 14</span>
+  <span class="spacer"></span>
+  <a href="13-extensions.html">←</a>
+  <a href="index.html">⌂</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part III — Beyond native</p>
+  <h1>Troubleshooting &amp; reference</h1>
+  <p class="lede">The failure catalog for everything this course had you do, a glossary of every
+  term it leaned on, and the map of harness documentation worth your next weekend.</p>
+</header>
+
+<h2>Failure catalog</h2>
+
+<h3>Preset problems (chapters 6–7)</h3>
+<table>
+  <tr><th>Symptom</th><th>Likely cause → fix</th></tr>
+  <tr><td>Preset missing from the picker</td><td>Directory not in <code>/root/.dsh/.agent-presets/</code>, or <code>agent.cordis.yml</code> misnamed. <code>agentPresets.list()</code> (via Creator mode) shows what the roster actually sees, with real paths.</td></tr>
+  <tr><td>Picker shows the raw id, no description</td><td><code>preset.yml</code> missing/empty — chapter 6 step 2.</td></tr>
+  <tr><td><code>standingKeyFor</code>: <code>invalid config: $.persona …</code> or similar</td><td>YAML indentation under the named row — usually the <code>persona: |</code> block. Validate the file: <code>python3 -c "import yaml,sys; yaml.safe_load(open('/root/.dsh/.agent-presets/main-agent/agent.cordis.yml'))"</code></td></tr>
+  <tr><td><code>N row(s) did not activate: waiting for &lt;service&gt;</code></td><td>Consumer row inside the wrong realm, or a host service that genuinely isn’t mounted (e.g. you referenced schedule before chapter 8).</td></tr>
+  <tr><td><code>published process-global service(s) […]</code></td><td>You added a provider row loose in the preset. Wrap provider + consumers in one <code>isolate</code> group, or move it host-side. (Chapters 2–3.)</td></tr>
+  <tr><td>Second session on the preset fails; first was fine</td><td>Same realm bug — the collision fires on the second mount. Same fix.</td></tr>
+  <tr><td><code>spawn_dev_agent</code> missing from the tool list</td><td>Row landed outside the delegation group’s <code>config:</code> list (indentation), or the file didn’t save. Re-validate.</td></tr>
+  <tr><td>Workers behave like generic coders (no report, no outcome.md)</td><td>The row’s <code>persona:</code> didn’t take (indentation), or your spawn prompts omit the protocol — check the tool call’s persona in the child’s session view.</td></tr>
+</table>
+
+<h3>Profile-patch problems (chapters 8, 13)</h3>
+<table>
+  <tr><th>Symptom</th><th>Likely cause → fix</th></tr>
+  <tr><td>Edited the patch; nothing changed</td><td>Watch the tmux log for <code>hmr/config-update-failed</code> — parse error keeps the last good tree. Duplicate row ids are fatal; an “empty” file must be <code>[]</code>.</td></tr>
+  <tr><td><code>schedule_create</code> still unknown after chapter 8</td><td>Row names typo’d, or you edited the wrong file. <code>dsh --profile web --dump-config | grep -n schedule</code> settles it.</td></tr>
+  <tr><td>Bundle plugin (ch. 13) never mounts</td><td>Bundle list is boot-time — did you restart once? Is the package listed in <em>both</em> <code>dependencies</code> and <code>dsh.profile.bundles</code>? Does its manifest carry <code>dsh.bundle.patch</code>?</td></tr>
+  <tr><td>Whole tree fails at boot after your change</td><td>Restore the backup: <code>cp /root/.dsh/profiles/web/cordis.patch.yml{.bak,}</code> and restart. This is why chapter 4 made you take it.</td></tr>
+</table>
+
+<h3>Dynamic-plugin problems (chapters 5, 11)</h3>
+<table>
+  <tr><th>Symptom</th><th>Likely cause → fix</th></tr>
+  <tr><td><code>service "x" is not declared</code></td><td><code>ctx.x</code> without <code>inject</code>. Use <code>ctx.get('x')</code> + undefined check, or declare the hard dependency.</td></tr>
+  <tr><td>Client half parse failure</td><td>JSX / TypeScript / <code>import</code> in dynamic code. Plain JS, <code>React.createElement</code> only.</td></tr>
+  <tr><td>Run “succeeded” but no UI appeared</td><td>Rendering happens after the run answers. <code>cordis_inspect_self(pluginId, packageId)</code> → <code>renderFailure</code> carries the crash for the exact run.</td></tr>
+  <tr><td><code>awaiting-approval</code> forever</td><td>That’s you — approve the card in the conversation. Never have the agent re-request after you reject.</td></tr>
+  <tr><td>Plugin gone after restart</td><td>By design: process memory only. Re-run it (grants persist), or package it (chapter 13).</td></tr>
+  <tr><td><code>@pluginId</code> reference “unavailable”</td><td>Other session’s plugin, undefined, or lost to a restart. Don’t recreate silently — the toolset’s prompt forbids it for good reason.</td></tr>
+</table>
+
+<h3>Supervisor-behavior problems (chapters 7, 10, 12)</h3>
+<table>
+  <tr><th>Symptom</th><th>Class → fix</th></tr>
+  <tr><td>Skips the interview / spawns before confirmation</td><td>Protocol violation → make the gate explicit and blocking in CEREMONY.</td></tr>
+  <tr><td>Blocks forever on a question</td><td>Check chapter 8’s patience path actually works (reminder created? schedule mounted?), then strengthen QUESTIONS wording.</td></tr>
+  <tr><td>Steers healthy workers on every timer wake</td><td>Protocol gap → define “on track” concretely and prescribe doing nothing.</td></tr>
+  <tr><td>Kills where a steer would do</td><td>Persona: “interrupt_agent first ONLY if the current turn must stop now” — move it adjacent to the steer rule; models read locally.</td></tr>
+  <tr><td>CHANGELOG has gaps</td><td>Fuse logging into each verb’s sentence (“Steer = send_message + one CHANGELOG line, always together”).</td></tr>
+  <tr><td>After restart it re-interviews</td><td>It didn’t consult <code>.agi/</code>/goal state — check GOAL.md exists and the goal tool shows the goal; if yes, strengthen STATE’s “restart must cost nothing.”</td></tr>
+  <tr><td>Duplicate workers for done work</td><td>Outcome discipline: settle-notice triage must read outcome.md <em>before</em> planning; make step 4’s first bullet explicit.</td></tr>
+</table>
+
+<h2>Glossary</h2>
+<table>
+  <tr><th>Term</th><th>Meaning (chapter)</th></tr>
+  <tr><td><strong>Plugin</strong></td><td>Object with <code>name</code>/<code>inject</code>/<code>apply(ctx)</code>, mounted into the tree (2).</td></tr>
+  <tr><td><strong>Service</strong></td><td>Long-lived capability on a stable <code>ctx.&lt;key&gt;</code> (2).</td></tr>
+  <tr><td><strong>inject</strong></td><td>Declared hard dependencies; plugin waits until they exist (2).</td></tr>
+  <tr><td><strong>Waterfall</strong></td><td>Around-middleware event; listeners must return <code>next()</code> to delegate (2).</td></tr>
+  <tr><td><strong>Effect / disposer</strong></td><td>Reversible registration; the returned function undoes it (2).</td></tr>
+  <tr><td><strong>Row</strong></td><td>One entry in a <code>cordis.yml</code>: id + package + config (2).</td></tr>
+  <tr><td><strong>Profile / bundle / patch layer</strong></td><td>Directory choosing bundles; distributable row-stack; id-targeted overrides applied in order (3).</td></tr>
+  <tr><td><strong>Host plane vs. agent preset</strong></td><td>Process-shared rows vs. one session’s rows (3).</td></tr>
+  <tr><td><strong>Isolate realm</strong></td><td>Group-scoped service namespace preventing preset collisions (2, 6).</td></tr>
+  <tr><td><strong>Roster</strong></td><td><code>ctx.agentPresets</code>: list/copy/validate presets (3, 6).</td></tr>
+  <tr><td><strong>Session / turn / step</strong></td><td>Durable event log / one wake-to-quiescence unit / one model request + its tools (3).</td></tr>
+  <tr><td><strong>Inbox</strong></td><td>The agent’s single FIFO of incoming messages; every wake is a delivery (3, 9).</td></tr>
+  <tr><td><strong>Continuable subagent</strong></td><td>Durable child session, messageable/resumable across restarts (9).</td></tr>
+  <tr><td><strong>Activation</strong></td><td>The period a child agent is resident in memory (9).</td></tr>
+  <tr><td><strong>Settle notice</strong></td><td>Unconditional parent notification when a child’s activation ends (9).</td></tr>
+  <tr><td><strong>Report</strong></td><td>Child-to-parent message tool; wakeup delivery by default (9).</td></tr>
+  <tr><td><strong>Plugin / Package / Run (dynamic)</strong></td><td>Stable id / immutable code version / one activation attempt (5).</td></tr>
+  <tr><td><strong>Slot</strong></td><td>Named UI seat a client plugin registers React components into (11).</td></tr>
+</table>
+
+<h2>The documentation map</h2>
+<p>All under <code>/root/deepseek-harness/</code>. Ordered by when they will next matter:</p>
+<table>
+  <tr><th>Read</th><th>When</th></tr>
+  <tr><td><code>docs/cordis-primer.md</code> → <code>docs/cordis-tutorial/</code></td><td>Consolidate chapter 2; the tutorial is hands-on.</td></tr>
+  <tr><td><code>docs/architecture.md</code></td><td>The 30-minute whole-picture read; its tables answer “where does X go.”</td></tr>
+  <tr><td><code>docs/subsystems/subagent.md</code></td><td>Before any advanced worker behavior (tool filters, output schemas, descendants).</td></tr>
+  <tr><td><code>docs/subsystems/schedule.md</code></td><td>Time-zone forms, catch-up rules for missed reminders.</td></tr>
+  <tr><td><code>docs/tool-catalog.md</code> / <code>docs/config-catalog.md</code></td><td>Generated references: every tool schema; every row config. When in doubt, these outrank prose docs.</td></tr>
+  <tr><td><code>docs/subsystems/tools.md</code> + <code>docs/tool-execution-pipeline.md</code></td><td>Before chapter 13’s delay/wait plugins.</td></tr>
+  <tr><td><code>docs/subsystems/session.md</code></td><td>Before the trace plugin; also the deepest explanation of the log invariants.</td></tr>
+  <tr><td><code>apps/cli/config/agent-presets/cordis/skills/*/SKILL.md</code></td><td>Re-read both skills after chapter 12 — they compress everything this course taught (mind the stale tool names in the compositions one).</td></tr>
+  <tr><td><code>packages/boot/app-boot/README.md</code></td><td>Profiles/bundles mechanics before shipping chapter 13’s package.</td></tr>
+  <tr><td><code>docs/defensive-patterns.md</code></td><td>Before writing any host plugin that touches lifecycle or teardown.</td></tr>
+</table>
+
+<h2>Where you are, and what’s next</h2>
+<p>
+  You built an always-on supervisor out of one authored preset, a page of protocol prose, two YAML
+  rows, and a file convention — and you can explain every mechanism it stands on: the plugin tree,
+  the two planes, the inbox, the continuable child, the settle notice. That understanding is the
+  durable artifact; the supervisor is just its first proof.
+</p>
+<p>Natural next steps, in rough order of ambition:</p>
+<ul>
+  <li><strong>Raise the parallel limit</strong> — the persona’s one-worker rule is a sentence; the machinery
+    already handles many children (interleaved settle notices and all). Try two.</li>
+  <li><strong>Give workers richer capabilities per task</strong> — the spawn row supports
+      <code>toolFilter</code>; missions like browser automation mean the worker installs Playwright
+      itself, exactly as the design intended.</li>
+  <li><strong>Run the real mission</strong> — the ceremony scales to “grow this X.com account”; the
+      credentials conversation happens where the persona already puts it (planning).</li>
+  <li><strong>Self-evolution (design §3.4)</strong> — let the supervisor propose persona diffs as questions,
+      applied by you. You now know exactly why the confirmation gate matters.</li>
+  <li><strong>Contribute upstream</strong> — you found the stale skill (chapter 5). The repo takes issues and
+      discussions; <code>CONTRIBUTING.md</code> is short.</li>
+</ul>
+
+<p class="center muted" style="margin-top:3rem">— end of course —</p>
+
+<nav class="pager">
+  <a class="prev" href="13-extensions.html">← Chapter 13 — Optional extensions</a>
+  <a class="next" href="index.html">Contents ⌂</a>
+</nav>
+</main>
+</body>
+</html>

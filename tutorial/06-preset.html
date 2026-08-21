@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6 · Milestone 1: the main-agent preset — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 6</span>
+  <span class="spacer"></span>
+  <a href="05-creator-mode.html">←</a>
+  <a href="07-brain.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 1</p>
+  <h1>Author the <code>main-agent</code> preset</h1>
+  <p class="lede">Your supervisor is born as a preset: a copy of <code>standard</code> with its own name,
+  description, and (next chapter) persona. This chapter creates it through the roster, validates the
+  mount, adds a dedicated worker-spawning row, and starts your first session on it.</p>
+</header>
+
+<h2>The plan for this milestone</h2>
+<ol>
+  <li>Use a Creator-mode agent to call <code>ctx.agentPresets.copy('standard', 'main-agent', …)</code>.</li>
+  <li>Fix the copy’s <code>preset.yml</code> metadata.</li>
+  <li>Add one row: a second delegation tool <code>spawn_dev_agent</code> with a worker persona — reusing
+      the shipped <code>dsh-tool-subagent</code> plugin, zero custom code.</li>
+  <li>Mount-validate with <code>standingKeyFor('main-agent')</code>.</li>
+  <li>Start a session on it and inspect its tool list.</li>
+</ol>
+
+<div class="box why">
+  <span class="box-title">Why a second <code>tool-subagent</code> row instead of a custom spawn plugin</span>
+  <p>
+    Your design’s amendment A6 planned a custom <code>agi-spawn</code> plugin so each spawn could carry
+    its own persona. Native-first observation: the shipped row config already supports a per-row
+    <code>persona</code>, <code>toolFilter</code>, and <code>agentOptions</code> (provider/model)
+    (<code>docs/config-catalog.md</code>, §dsh-tool-subagent). One persona per <em>row</em> is less flexible
+    than one per <em>spawn</em> — but the per-spawn part (“you are a browser operator”, “you are a
+    researcher”) travels perfectly well in the task prompt itself. So: shipped plugin, dedicated row,
+    role in the prompt. If you ever outgrow this, chapter 13 shows the custom tool.
+  </p>
+</div>
+
+<h2>Step 1 — copy the preset through the roster</h2>
+<p>
+  Open a Creator-mode session (workspace <code>/root/agi-lab</code>, preset <code>cordis</code>) and give it
+  this mission. It knows the drill from chapter 5 — it will define a small probe plugin that injects
+  <code>agentPresets</code> and registers itself tools to call the roster with:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>prompt to the Creator-mode agent</figcaption>
+<pre><code>Create a new agent preset for me:
+
+1. Query the exact 'agentPresets' service contract first
+   (cordis_inspect_query, host, Service.listService, service: "agentPresets").
+2. Through a temporary dynamic plugin, call:
+     agentPresets.copy('standard', 'main-agent', 'Main Agent (Supervisor)')
+   then agentPresets.resolve('main-agent') and give me the created path.
+3. Undefine the temporary plugin when done.
+
+Do NOT edit any shipped preset. If 'main-agent' already exists, stop and
+tell me.</code></pre>
+</figure>
+<p>What <code>copy()</code> guarantees you (from its source, so you can trust it):</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/preset/agent-presets/src/index.ts (copy(), lines 374–392, abridged)</figcaption>
+<pre><code>/**
+ * Copy a whole preset directory into the writable user root: composition,
+ * metadata, skill directories, assets. ...
+ * @throws when the source is unknown, the id is unusable or already taken,
+ * or the deployment configures no writable root.
+ */
+async copy(from: string, id: string, name?: string): Promise&lt;void&gt; {
+  // The roster check refuses ids any root supplies — shipped ones included ...
+}</code></pre>
+</figure>
+<p>
+  Expected result: a new directory <code>/root/.dsh/.agent-presets/main-agent/</code> containing
+  <code>agent.cordis.yml</code> (identical to <code>standard</code>’s for now) and <code>preset.yml</code>.
+  Verify from your terminal:
+</p>
+<pre><code>ls /root/.dsh/.agent-presets/main-agent/
+# expect: agent.cordis.yml  preset.yml   (possibly skills/ if standard ships any)</code></pre>
+
+<h2>Step 2 — the display metadata</h2>
+<p>
+  Edit <code>/root/.dsh/.agent-presets/main-agent/preset.yml</code> (this file is yours — a locally
+  authored preset is explicitly “yours to create, edit, and delete”):
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>/root/.dsh/.agent-presets/main-agent/preset.yml</figcaption>
+<pre><code>name: Main Agent (Supervisor)
+description: >-
+  Always-on supervisor: locks a goal with you, then loops — spawn a dev
+  subagent, sleep, wake on settle/report/timer, inspect, steer or kill.
+  All durable state in the workspace's .agi/ directory.</code></pre>
+</figure>
+<p class="muted">Without this, every picker shows the bare directory name — the skill calls it out explicitly.</p>
+
+<h2>Step 3 — add the worker-spawning row</h2>
+<p>
+  Open <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code>. Find the <code>delegation</code>
+  group (you read it in chapter 2 — it already carries <code>tool-subagent-control</code>,
+  <code>tool-subagent</code>, and friends). <strong>Inside that same group’s <code>config</code> list</strong>, add
+  one more row:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>add inside the delegation group of main-agent/agent.cordis.yml</figcaption>
+<pre><code>    - id: tool-subagent-dev
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: spawn_dev_agent
+        backgroundMode: continuable
+        persona: |
+          You are a Dev Agent: a focused worker under an always-on supervisor.
+          Your task arrives as your first message and is complete and
+          self-contained; stay strictly inside its scope.
+          - Blocked on information only the supervisor or user has: call the
+            report tool with the precise question, then stop working until the
+            answer arrives as your next turn.
+          - On completion: write outcome.md (what you did, what you verified,
+            what remains) at the path your task names, then report a
+            one-paragraph summary.
+          - Supervisor messages arriving mid-task are course corrections:
+            comply immediately.
+          - Do not spawn your own subagents unless your task allows it.</code></pre>
+</figure>
+<p>Why each field, with the receipts:</p>
+<ul>
+  <li><code>provider: spawn</code> — the in-process backend that creates a <em>fresh</em> child (no parent
+      history). Registered host-side by <code>subagent-spawn-in-process</code>
+      (<code>packages/bundle/base/cordis.patch.yml</code>, lines 295–298).</li>
+  <li><code>toolName: spawn_dev_agent</code> — your supervisor gets a tool by this name, distinct from the
+      generic <code>subagent</code> tool it also keeps.</li>
+  <li><code>backgroundMode: continuable</code> — children are durable sessions you can
+      <code>send_message</code> / <code>interrupt_agent</code>, and whose settling wakes the parent. (Chapter 9
+      is entirely about this.)</li>
+  <li><code>persona</code> — registered as the <em>child’s</em> persona, shadowing the deployment default for
+      that child alone. This is the documented per-request persona path: “in-process backends …
+      register it as a scoped <code>deployment:persona</code> section on the child”
+      (<code>docs/subsystems/subagent.md</code>, <code>SubagentStartRequest.persona</code>).</li>
+</ul>
+<p>
+  Optionally, pin the worker model on the same row (this is where your design’s
+  <code>subagentModel</code> knob lives now — user-owned YAML, not agent-editable):
+</p>
+<pre><code>        agentOptions:
+          provider: deepseek-official     # match your deployment's route names
+          model: deepseek-chat            # check Settings → Models in the web UI</code></pre>
+<div class="box warn">
+  <span class="box-title">Do not add <code>agi-*</code> service rows here</span>
+  <p>
+    Everything else this build needs is host-plane (schedule, chapter 8) or already present. A service
+    row loose in a preset is the classic mount rejection from chapters 2–3. The delegation group you
+    are editing already has the right realm (<code>isolate: workflowEngine</code>) for what it owns.
+  </p>
+</div>
+
+<h2>Step 4 — validate the mount</h2>
+<p>
+  Back in your Creator-mode session (same probe-plugin trick — or just ask it; it remembers the
+  pattern):
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>prompt to the Creator-mode agent</figcaption>
+<pre><code>Mount-validate my preset: call agentPresets.standingKeyFor('main-agent')
+through a temporary plugin and report the outcome verbatim. If it throws,
+give me the full error text.</code></pre>
+</figure>
+<p><code>standingKeyFor</code> is the real check — it composes the preset’s subtree exactly as a session start would. The four failure shapes it can name, and what each means:</p>
+<table>
+  <tr><th>Rejection</th><th>Meaning</th><th>Fix</th></tr>
+  <tr><td><code>Cannot find package …</code></td><td>A row names a package this deployment doesn’t have.</td><td>Typo in <code>name:</code>, or the plugin needs installing (chapter 13’s topic).</td></tr>
+  <tr><td><code>invalid config: $.&lt;field&gt; …</code></td><td>Row config fails the plugin’s schema.</td><td>Fix the named field. (E.g. a typo in <code>backgroundMode</code>.)</td></tr>
+  <tr><td><code>N row(s) did not activate: waiting for &lt;service&gt;</code></td><td>A consumer can’t resolve a service.</td><td>You put a consumer inside the wrong realm, or the host lacks the service.</td></tr>
+  <tr><td><code>published process-global service(s) […]</code> / <code>service "x" has been registered</code></td><td>The realm rule violation.</td><td>Wrap provider+consumers in an <code>isolate</code> group — or the row belongs host-side.</td></tr>
+</table>
+<p class="muted">
+  Source for the list: <code>editing-cordis-compositions</code> skill, “Verifying a change”. Note its other
+  warning: the roster’s <code>broken</code> flag is only a file-shape check — <em>not</em> validation.
+</p>
+
+<h2>Step 5 — first session on your preset</h2>
+<p>
+  Web UI → new session → workspace <code>/root/agi-lab</code> → preset picker now shows
+  <strong>Main Agent (Supervisor)</strong> under your custom presets. Start it, then ask it:
+</p>
+<pre><code>"List every tool you can currently call, names only, grouped by theme."</code></pre>
+
+<div class="box test">
+  <span class="box-title">Test it live — milestone 1 acceptance</span>
+  <ol>
+    <li><code>standingKeyFor('main-agent')</code> returned clean (“mounted OK” or equivalent — no thrown error).</li>
+    <li>The preset appears in the picker with your display name and description.</li>
+    <li>The new session’s tool list contains, at minimum:
+        <code>spawn_dev_agent</code>, <code>subagent</code>, <code>send_message</code>, <code>interrupt_agent</code>,
+        <code>list_agents</code>, <code>goal</code>-related tools, <code>todo_write</code>, plus the ordinary
+        bash/fs suite.</li>
+    <li>Negative check: a <em>second</em> session on <code>main-agent</code> starts cleanly too (proves you
+        didn’t introduce a realm collision).</li>
+  </ol>
+  <p><strong>If <code>spawn_dev_agent</code> is missing:</strong> your row is outside the delegation group’s
+  <code>config:</code> list (indentation!), or the file didn’t save. Re-run step 4 — the validator’s
+  message will name the row.</p>
+</div>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · reading the row’s config schema</span>
+  <p>
+    How did we know <code>persona</code> and <code>agentOptions</code> are legal fields? The plugin declares a
+    <code>Config</code> schema, and the generated catalog renders it:
+    <code>/root/deepseek-harness/docs/config-catalog.md</code>, section <code>dsh-tool-subagent</code>. When
+    you wonder “what can this row take?”, the catalog is the answer — and invalid fields fail loud at
+    validation, never silently.
+  </p>
+</div>
+
+<h2>What exists now</h2>
+<p>
+  A supervisor-shaped agent: right tools, right delegation row, no brain yet — its persona is still
+  <code>standard</code>’s generic coding text. Chapter 7 writes the brain.
+</p>
+
+<nav class="pager">
+  <a class="prev" href="05-creator-mode.html">← Chapter 5 — Creator mode</a>
+  <a class="next" href="07-brain.html">Chapter 7 — Milestone 2: the brain →</a>
+</nav>
+</main>
+</body>
+</html>

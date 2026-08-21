@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 · Milestone 6: UI, the minimal way — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 11</span>
+  <span class="spacer"></span>
+  <a href="10-loop.html">←</a>
+  <a href="12-acceptance.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 6</p>
+  <h1>UI, the minimal way</h1>
+  <p class="lede">Your design sketched two custom tabs. This chapter shows how much of that the
+  shipped web UI already gives you for free, sets up the observation habits that replace the rest —
+  and then, as the one optional flourish, adds a tiny status pill through a dynamic client plugin,
+  registered into a shipped slot.</p>
+</header>
+
+<h2>What the shipped UI already is</h2>
+<p>Map your design’s two tabs onto what’s on screen right now:</p>
+<table>
+  <tr><th>Designed feature</th><th>Shipped equivalent</th></tr>
+  <tr><td>Progress tab: the locked goal + amendments</td><td>The goal tool’s state, rendered by the web UI for the session (chapter 7). <code>GOAL.md</code> / <code>GOAL_AMENDMENTS.md</code> readable in any editor.</td></tr>
+  <tr><td>Progress tab: event feed</td><td><code>.agi/progress.jsonl</code> — one <code>tail -f</code> away (below). Plus the supervisor’s own chat, which narrates milestones.</td></tr>
+  <tr><td>Progress tab: question stack</td><td><code>.agi/questions.jsonl</code>, same treatment — and pending questions also appear in chat, where you answer them.</td></tr>
+  <tr><td>Subagents tab: run list</td><td>The sidebar’s session list for the workspace: every worker is a session there, newest first.</td></tr>
+  <tr><td>Subagents tab: detail pane + live trace</td><td>Click the worker’s session: full conversation, every tool call and result, streaming live. This is strictly better than a trace tail.</td></tr>
+  <tr><td>Subagents tab: kill/steer buttons</td><td>By design, all input flows through the Main Agent chat (your Q18): “kill the researcher” <em>is</em> the button. The chat is the control surface.</td></tr>
+</table>
+<p>
+  So the honest gap is small: a glanceable, always-visible “what is the supervisor doing right now”
+  indicator, and file-feed convenience. Solve the second with a terminal habit, the first with an
+  optional pill.
+</p>
+
+<h2>The observation habit (zero code)</h2>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>a supervision dashboard in one tmux window</figcaption>
+<pre><code># pane 1 — the feed and the questions, live:
+tail -f /root/agi-lab/.agi/progress.jsonl /root/agi-lab/.agi/questions.jsonl \
+        /root/agi-lab/.agi/CHANGELOG.jsonl
+
+# pane 2 — workers appearing/settling:
+watch -n 5 'ls -lt /root/.dsh/sessions/--root-agi-lab--/ | head'</code></pre>
+</figure>
+<p>
+  During chapter 12’s acceptance run, keep this open next to the browser. Most people find they never
+  miss the custom tabs.
+</p>
+
+<h2>Optional: a status pill in the shipped overlay slot</h2>
+<p>
+  Now the flourish — and the excuse to learn client-side dynamic plugins. The web UI’s layout
+  declares a frame-wide floating layer exactly for additions like this:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts (shell.overlay entry, abridged)</figcaption>
+<pre><code>key: 'shell.overlay', kind: 'list', scope: 'root',
+summary: 'Frame-wide floating layer, above every column and outside their
+scroll containers.',
+doc: '... Deliberately generic and unowned by any feature: a badge, a toast
+stack or a status pill all belong here ... The layer itself is click-through —
+entries opt back into pointer events — so an occupant never blocks the app
+underneath. This is the additive seat for a frame-wide surface of your own:
+a fresh id is added beside the shipped entries instead of replacing them.'</code></pre>
+</figure>
+<p>
+  “A status pill belongs here” — the catalog literally names your use case. The pill will poll your
+  <code>.agi/</code> files through a package-private host method (<code>harness.handle</code> on the host
+  half, <code>host.call</code> from the client half — the documented RPC bridge from the
+  <code>cordis-plugin-development</code> skill).
+</p>
+<p>
+  In a Creator-mode session (<code>/root/agi-lab</code>), have it first <em>query the slot for real</em>
+  (<code>cordis_inspect_query</code>, client, <code>Slots.listSubTree</code>, root <code>shell.overlay</code> —
+  a browser tab must be open to answer), then define and run this two-halved plugin:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>dynamic plugin — host half (code.host)</figcaption>
+<pre><code>return {
+  name: 'agi-pill-host',
+  apply(ctx) {
+    const fs = ctx.get('fs')
+    if (fs === undefined) return
+    harness.handle('agi-status', async () =&gt; {
+      const base = '/root/agi-lab/.agi'
+      const read = async (f) =&gt; {
+        try { return await fs.readText(base + '/' + f) } catch { return '' }
+      }
+      const lastLine = (t) =&gt; t.trim().split('\n').filter(Boolean).pop() ?? ''
+      const progress = lastLine(await read('progress.jsonl'))
+      const questions = (await read('questions.jsonl')).trim().split('\n')
+        .filter(Boolean)
+        .map((l) =&gt; { try { return JSON.parse(l) } catch { return undefined } })
+        .filter((q) =&gt; q !== undefined &amp;&amp; q.status === 'pending').length
+      return { progress, pendingQuestions: questions }
+    })
+  },
+}</code></pre>
+</figure>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>dynamic plugin — client half (code.client)</figcaption>
+<pre><code>return {
+  inject: ['timer'],
+  apply(ctx) {
+    const slots = ctx.get('slots')
+    if (slots === undefined) return
+    function Pill() {
+      const [state, setState] = React.useState(undefined)
+      React.useEffect(() =&gt; ctx.interval(async () =&gt; {
+        try { setState(await host.call('agi-status', {})) } catch {}
+      }, 5000), [])
+      if (state === undefined) return null
+      let text = 'agi: idle'
+      try {
+        const p = JSON.parse(state.progress || '{}')
+        if (p.text) text = 'agi: ' + String(p.text).slice(0, 60)
+      } catch {}
+      if (state.pendingQuestions &gt; 0) {
+        text += '  ·  ❓ ' + state.pendingQuestions + ' pending'
+      }
+      return React.createElement('div', {
+        style: {
+          position: 'fixed', bottom: '14px', right: '14px',
+          padding: '6px 12px', borderRadius: '999px',
+          background: 'var(--color-bg-elevated, #222)',
+          color: 'var(--color-fg, #eee)',
+          font: '12px/1.4 system-ui', pointerEvents: 'auto',
+          boxShadow: '0 2px 10px rgba(0,0,0,.25)',
+        },
+      }, text)
+    }
+    slots.inject('shell.overlay', () =&gt; slots.register(
+      { name: 'shell.overlay', id: 'agi-pill', order: 100, label: 'AGI status' },
+      () =&gt; React.createElement(Pill),
+    ))
+  },
+}</code></pre>
+</figure>
+<p>Read your own code against the skill’s rules — every one appears here:</p>
+<ul>
+  <li>Host half exposes one JSON method with <code>harness.handle</code>; client calls it with
+      <code>host.call</code>. Only plain JSON crosses (we parse/slice to scalars first).</li>
+  <li>Client uses <code>React.createElement</code> — no JSX in dynamic code.</li>
+  <li>The timer is the <code>timer</code> <em>service</em>, hard-injected, and <code>ctx.interval</code> returns a
+      disposer that <code>useEffect</code> hands back — teardown-safe on stop/update.</li>
+  <li>The slot is registered <em>inside</em> <code>slots.inject(…)</code>, with a fresh <code>id</code> so it adds
+      beside shipped entries, and opts into <code>pointerEvents</code> per the overlay contract.</li>
+  <li>Filesystem access goes through <code>ctx.get('fs')</code> — the Cordis service, not Node globals
+      (which the sandbox withholds).</li>
+</ul>
+
+<div class="box test">
+  <span class="box-title">Test it live — milestone 6 acceptance</span>
+  <ol>
+    <li><code>cordis_run</code> returns <code>awaiting-approval</code> for the client half → an approval card
+        appears in the Creator session → approve it once.</li>
+    <li>The pill appears bottom-right of the web UI, in <em>every</em> open tab.</li>
+    <li>Append a line and watch it change within ~5 s:
+        <code>echo '{"ts":"now","text":"pill test"}' &gt;&gt; /root/agi-lab/.agi/progress.jsonl</code></li>
+    <li>Add a fake pending question line to <code>questions.jsonl</code> → the ❓ counter appears; flip its
+        status to <code>answered</code> → it clears.</li>
+    <li><code>cordis_stop</code> → the pill vanishes everywhere (effects unwound, both sides of the wire).
+        Run it again — one approval was enough (the grant persists).</li>
+  </ol>
+  <p><strong>Remember its nature:</strong> dynamic plugins die with the process. If you love the pill,
+  chapter 13 explains what “promoting it to a real plugin” involves; until then, re-running it after
+  a restart is two tool calls in any Creator session.</p>
+</div>
+
+<div class="box why">
+  <span class="box-title">Why we didn’t build the two tabs</span>
+  <p>
+    A <code>conversation.view</code> tab (the shipped slot for whole view tabs — same catalog,
+    key <code>conversation.view</code>) rendering <code>.agi/</code> is entirely buildable with exactly the
+    techniques above, and nothing about it is beyond you now. It just isn’t <em>earning its keep</em>:
+    the session list already is the run list, the session view already is the trace, and your files
+    already have a feed. Native-first means spending UI effort only where the shipped surface is
+    actually silent — which turned out to be one pill.
+  </p>
+</div>
+
+<nav class="pager">
+  <a class="prev" href="10-loop.html">← Chapter 10 — Milestone 5: the loop</a>
+  <a class="next" href="12-acceptance.html">Chapter 12 — Milestone 7: acceptance →</a>
+</nav>
+</main>
+</body>
+</html>

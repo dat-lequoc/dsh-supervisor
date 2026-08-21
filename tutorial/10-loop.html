@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 · Milestone 5: the supervision loop — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part II · Chapter 10</span>
+  <span class="spacer"></span>
+  <a href="09-delegation.html">←</a>
+  <a href="11-ui.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part II — Build · Milestone 5</p>
+  <h1>The supervision loop</h1>
+  <p class="lede">Everything assembles here. The supervisor now runs the full cycle unattended:
+  spawn → sleep → wake (settle / report / timer / you) → triage → repeat — with every action
+  logged. You force each branch once and watch it hold.</p>
+</header>
+
+<h2>The loop, restated as wake sources</h2>
+<p>
+  After chapters 8 and 9 there is nothing left to build — only behavior to verify. The supervisor’s
+  “loop” is really four independent wake sources feeding one inbox, each carrying its own triage
+  rule from your persona:
+</p>
+<table>
+  <tr><th>Wake source</th><th>Native mechanism</th><th>Persona’s triage rule</th></tr>
+  <tr><td>Worker finished</td><td>Settle notice (unconditional, carries final content)</td><td>Read <code>outcome.md</code> + final message → progress line → next unit or done.</td></tr>
+  <tr><td>Worker blocked</td><td><code>report</code> (wakeup delivery)</td><td>Answer via <code>send_message</code>, or ask the user and keep unblocked work moving.</td></tr>
+  <tr><td>Timer</td><td>Recurring reminder (<code>every_seconds = wakeMinutes*60</code>)</td><td>Inspect the worker; on-track → continue; drifting → steer; poisoned → kill + respawn.</td></tr>
+  <tr><td>You spoke</td><td>Ordinary user message</td><td>Overrides everything; it is steering.</td></tr>
+</table>
+
+<h2>Inspection without a trace plugin</h2>
+<p>
+  The timer-wake rule says “inspect the worker.” Give the supervisor a concrete, cheap way to do
+  that. Two native surfaces:
+</p>
+<ol>
+  <li><strong><code>list_agents</code></strong> — is it still running at all?</li>
+  <li><strong>The child’s session log on disk.</strong> The child id names its directory under
+      <code>/root/.dsh/sessions/--root-agi-lab--/</code>, and the JSONL is grep-friendly. The last few
+      <code>tool/call</code> lines answer “what is it doing right now” in one command.</li>
+</ol>
+<p>
+  Encode this as an addition to the persona’s triage step — worth doing now that you’ve seen the
+  logs yourself (chapter 4). Append to the persona’s step 4, “Scheduled check-in” branch:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>persona addition (inside the scheduled check-in branch)</figcaption>
+<pre><code>  To inspect a worker cheaply: list_agents for liveness; then tail its
+  recent activity from its session log —
+    grep '"type":"tool/call"' /root/.dsh/sessions/&lt;workspace-dir&gt;/&lt;child-id&gt;*/\
+*.jsonl | tail -20
+  Judge drift by comparing what you see against the task's Scope. Log a
+  one-line verdict to NOTES.md each check-in.</code></pre>
+</figure>
+<p class="muted">
+  (Exact filenames under a session directory vary; let the agent discover them with <code>ls</code> once
+  and note the pattern in NOTES.md. If you later want structured per-child traces instead, that is
+  chapter 13’s trace plugin.)
+</p>
+
+<h2>Arming and disarming the timer</h2>
+<p>
+  One more persona refinement, so timers don’t leak: the check-in reminder exists <em>only while
+  workers run</em>. Append to the LOOP section:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>persona addition (LOOP)</figcaption>
+<pre><code>  Timer discipline: after a spawn, if no recurring check-in reminder exists,
+  create one for wakeMinutes (from config.json). When no workers remain
+  running, schedule_delete it. Never keep more than one check-in reminder.</code></pre>
+</figure>
+<p>Re-validate the preset after both edits (<code>standingKeyFor</code>, chapter 6 step 4) and start a fresh session for testing.</p>
+
+<h2>The full-loop rehearsal</h2>
+<p>
+  Now run a real, multi-worker mission and force every branch. Use a goal small enough to finish in
+  one sitting but big enough to need two workers. The script below is your design’s M6 acceptance,
+  minus the pieces you moved to chapter 12.
+</p>
+<div class="box test">
+  <span class="box-title">Test it live — milestone 5 acceptance: one mission, every branch</span>
+  <p><strong>Setup:</strong> fresh <code>main-agent</code> session in <code>/root/agi-lab</code>;
+  <code>config.json</code>: <code>wakeMinutes: 5</code>, <code>questionWaitMinutes: 2</code>.</p>
+  <ol>
+    <li><strong>Ceremony:</strong> mission — <em>“Produce SUMMARY.md describing the layout of
+        /root/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Interview → GOAL.md →
+        confirm. <span class="muted">(Deliberately omit where SUMMARY.md should go — seed for step 4.)</span></li>
+    <li><strong>Spawn + timer:</strong> expect a <code>spawn_dev_agent</code> with a complete task prompt
+        (Role/Objective/Scope/Context/Protocol/Constraints — read the tool call in the UI and grade
+        it), a <code>spawn</code> line in CHANGELOG, and a recurring check-in created.</li>
+    <li><strong>Timer wake with a verdict:</strong> when the 5-minute reminder fires while the worker runs,
+        expect: <code>list_agents</code> + a log tail + a one-line verdict in NOTES.md, then quiet
+        continuation — no pointless steering of an on-track worker.</li>
+    <li><strong>Unanswered question:</strong> at some point the output-location ambiguity should surface
+        (the worker reports, or the supervisor asks you). Stay silent. Expect: pending →
+        patience reminder → <code>assumed</code> with a sensible recorded assumption → work continues.</li>
+    <li><strong>Forced steer:</strong> while a worker runs, say — <em>“have it also count the .zh.md
+        files.”</em> Expect <code>send_message</code> (not a kill, not a respawn) + a <code>steer</code>
+        CHANGELOG line.</li>
+    <li><strong>Forced kill:</strong> say — <em>“that worker’s approach is wrong; kill it and respawn with a
+        tighter scope.”</em> Expect <code>interrupt_agent</code> + <code>kill</code> line + a fresh spawn whose
+        task visibly narrowed.</li>
+    <li><strong>Settle → next unit:</strong> when a worker settles, expect: outcome.md read, progress.jsonl
+        line, and either the next spawn or goal completion — without you prompting.</li>
+    <li><strong>Finish:</strong> SUMMARY.md exists where the assumption said; goal marked complete; the
+        check-in reminder deleted (<code>schedule_list</code> shows none).</li>
+  </ol>
+  <p><strong>Grade the artifacts, not the vibes:</strong> at the end,
+  <code>cat .agi/CHANGELOG.jsonl</code> should read as a faithful diary of steps 2–7. If an action
+  happened without its line, tighten the persona’s STATE section and re-run — the changelog’s
+  completeness is what makes the 24/7 version auditable.</p>
+</div>
+
+<h2>Restart resilience (the cheap version)</h2>
+<p>
+  The full restart test belongs to chapter 12, but do the cheap half now: close the browser tab,
+  reopen the session, and say “continue.” Expect the supervisor to pick up from its files and the
+  goal tool — no re-interviewing, no lost workers (they are durable sessions; <code>list_agents</code>
+  still sees them).
+</p>
+
+<div class="box why">
+  <span class="box-title">Why persona iteration is the real work of this chapter</span>
+  <p>
+    Every failure you see in the rehearsal is one of three kinds: a <em>protocol gap</em> (the persona
+    never said what to do — add a rule), a <em>protocol violation</em> (it said so, but the model skipped
+    it — strengthen the wording, move it earlier, or make it a numbered step), or a
+    <em>mechanism failure</em> (a tool errored — that’s a chapter 6/8 regression, re-validate). Fix in
+    that order. The machinery beneath you is shipped and tested; in the native-first build,
+    debugging is prompt engineering with a paper trail.
+  </p>
+</div>
+
+<h2>What exists now</h2>
+<p>
+  A working supervisor. Left: seeing it well (chapter 11’s UI habits + optional pill), and the formal
+  acceptance + restart drill (chapter 12).
+</p>
+
+<nav class="pager">
+  <a class="prev" href="09-delegation.html">← Chapter 9 — Milestone 4: workers</a>
+  <a class="next" href="11-ui.html">Chapter 11 — Milestone 6: UI →</a>
+</nav>
+</main>
+</body>
+</html>

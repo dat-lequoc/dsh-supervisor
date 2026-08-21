@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2 · Cordis from scratch — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Part I · Chapter 2</span>
+  <span class="spacer"></span>
+  <a href="01-big-picture.html">←</a>
+  <a href="03-harness.html">→</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Part I — Foundations</p>
+  <h1>Cordis from scratch</h1>
+  <p class="lede">The harness’s slogan is “everything is a plugin.” This chapter teaches the
+  plugin framework underneath — Cordis — well enough that when you later read a real plugin,
+  every line means something. It also quietly teaches you the JavaScript and TypeScript
+  you need along the way.</p>
+</header>
+
+<h2>Why a plugin framework at all?</h2>
+<p>
+  Imagine building an AI agent product the ordinary way: a big program where the model client,
+  the tool registry, the session log, and the UI all import each other. Every new capability means
+  editing the core. DeepSeek Harness refuses that: there is <em>no privileged core to patch</em>. The
+  model adapter is a plugin. The tool registry is a plugin. The agent loop itself is a plugin. You
+  extend the product by <em>mounting another plugin beside the others</em>, and you remove your extension
+  by unmounting it — nothing else changes.
+</p>
+<p>
+  Cordis is the framework that makes this composable. The harness vendors it (a pinned copy lives at
+  <code>/root/deepseek-harness/vendor/cordis/</code>), and its primer condenses the whole thing into five
+  ideas. Here they are, verbatim from the harness docs, then unpacked one by one:
+</p>
+
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/cordis-primer.md (lines 7–13)</figcaption>
+<pre><code>- A plugin is a object that implements Service. It can be a function with optional
+  `inject` and `apply(ctx)` fields, or a `Service` subclass ...
+- A context is a repository of services. A service claims a stable `ctx.&lt;key&gt;` such as
+  `ctx.tools`, `ctx.llm`, or `ctx.sessions` from a context; other plugins find services
+  via key instead of importing a concrete implementation.
+- Declare service dependency via `inject`. A plugin that names required services waits
+  until those services exist ...
+- Typed Events for communication ... dispatched as `emit`, `waterfall`, `parallel`, or
+  `serial` ...
+- Registrations are reversible effects. Prompt sections, tool schemas, adapters,
+  providers, and listeners are installed through `ctx.effect()` or `ctx.on()` so reload
+  and teardown unwind them predictably.</code></pre>
+</figure>
+
+<h2>Idea 1 — A plugin is a small object with an <code>apply</code> function</h2>
+<p>Here is the smallest possible plugin, in plain JavaScript:</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>the smallest plugin</figcaption>
+<pre><code>export const name = 'hello'
+
+export function apply(ctx) {
+  console.log('hello was mounted!')
+}</code></pre>
+</figure>
+<p>
+  That’s it. A plugin is a module (or object) exposing a <code>name</code> and an <code>apply</code>
+  function. When the framework <em>mounts</em> the plugin, it calls <code>apply(ctx)</code> exactly once,
+  handing it a <strong>context</strong> — the plugin’s window into everything else. When the plugin is
+  <em>unmounted</em>, everything it registered through that context is automatically torn down
+  (idea 5 explains how).
+</p>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · reading <code>export</code>, <code>const</code>, <code>function</code></span>
+  <p>
+    JavaScript files are modules: <code>export</code> marks what other files may import. <code>const</code>
+    declares a variable that cannot be reassigned. TypeScript is JavaScript plus <em>type
+    annotations</em> — notes about what shape a value has, checked before the code runs and then erased.
+    The same plugin in the harness’s own TypeScript style looks like:
+  </p>
+<pre><code>export function apply(ctx: Context): void { ... }</code></pre>
+  <p>
+    Read <code>ctx: Context</code> as “<code>ctx</code> is a <code>Context</code>” and <code>: void</code> as
+    “returns nothing.” When you skim harness source, you can mentally delete everything after a
+    colon in a parameter list and still understand the runtime behavior.
+  </p>
+</div>
+
+<h2>Idea 2 — A context is a repository of services</h2>
+<p>
+  A <strong>service</strong> is a long-lived object that claims a stable key on the context. The tool
+  registry claims <code>ctx.tools</code>; the session store claims <code>ctx.sessions</code>; the subagent
+  runtime claims <code>ctx.subagents</code>. Any plugin can then reach a capability <em>by key</em>, without
+  importing (or even knowing) the package that implements it:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>consuming a service by key</figcaption>
+<pre><code>export function apply(ctx) {
+  const store = ctx.get('sessions')     // may be undefined if nothing provides it
+  if (store === undefined) return
+  console.log('sessions currently live:', store.list().length)
+}</code></pre>
+</figure>
+<p>
+  This indirection is what makes providers swappable. The filesystem service, the shell service,
+  the subagent providers — each is “whoever registered under this key.” Point the keys at a remote
+  sandbox implementation and the whole product moves there, no callers edited. The harness
+  architecture doc calls a swappable capability like this a <em>seam</em>
+  (<code>docs/architecture.md</code>, “Capability seams”).
+</p>
+
+<h2>Idea 3 — <code>inject</code>: declaring dependencies instead of ordering boot</h2>
+<p>
+  What if your plugin <em>requires</em> a service? You could call <code>ctx.get()</code> and hope it’s
+  there — but load order would then matter, and with hundreds of plugins that is unmanageable.
+  Instead a plugin <em>declares</em> its requirements:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>declaring a hard dependency</figcaption>
+<pre><code>export const name = 'session-counter'
+export const inject = ['sessions']          // ← I need ctx.sessions
+
+export function apply(ctx) {
+  // guaranteed to exist here — Cordis waited for it before calling apply()
+  console.log(ctx.sessions.list().length)
+}</code></pre>
+</figure>
+<p>
+  A plugin naming services in <code>inject</code> simply <em>waits</em> — Cordis keeps it pending until every
+  named service exists, then activates it. If a service later disappears (its provider unmounts),
+  dependents are deactivated. Load order becomes a property the framework computes, not something
+  you sequence by hand. This is also your first debugging lever: a plugin that “never ran” is
+  usually a plugin waiting on a service nobody provides, and the harness reports exactly that
+  (“<code>N row(s) did not activate: waiting for &lt;service&gt;</code>” — you will meet this message in
+  chapter 6’s validation step).
+</p>
+<p>For a real example, the Cordis toolset plugin you’ll use in chapter 5 declares:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/tool-cordis/src/index.ts (line 28)</figcaption>
+<pre><code>export const inject = ['tools', 'systemPrompt', 'dynamicCordisRunner', 'cordisInspect']</code></pre>
+</figure>
+<p>
+  Read it as a manifest: “I register model tools (<code>tools</code>), I add a prompt section
+  (<code>systemPrompt</code>), and I need the dynamic-plugin runner and the inspect registry.” You can
+  often understand a plugin’s role from its <code>inject</code> line alone.
+</p>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · arrays and strings</span>
+  <p>
+    <code>['tools', 'systemPrompt']</code> is an array literal of strings. TypeScript infers its type as
+    <code>string[]</code> (“array of strings”). You will also see <code>readonly string[]</code> — same thing,
+    but the compiler forbids mutating it. Neither annotation exists at runtime.
+  </p>
+</div>
+
+<h2>Idea 4 — Typed events, and the four dispatch modes</h2>
+<p>
+  Services expose <em>methods</em> for direct calls (“start a subagent”), and <em>events</em> for
+  interception and observation (“a tool is about to execute”). A plugin listens with
+  <code>ctx.on(name, listener)</code>. What makes Cordis events unusual is that every event declares a
+  <strong>dispatch mode</strong> — part of its public contract:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/cordis-primer.md (lines 19–24)</figcaption>
+<pre><code>| Mode      | Awaited? | Dispatch Order                        | Has Return Value? |
+|-----------|----------|---------------------------------------|-------------------|
+| emit      | No       | listeners observe in registration order| No                |
+| waterfall | No       | listeners observe in registration order| Yes               |
+| parallel  | Yes      | all listeners observe in parallel      | No                |
+| serial    | Yes      | listeners observe in registration order| Yes               |</code></pre>
+</figure>
+<ul>
+  <li><strong>emit</strong> — fire-and-forget observation. Example: <code>session/event</code>, the firehose that
+      announces every appended session-log event. Listeners can watch; they cannot change anything.</li>
+  <li><strong>waterfall</strong> — <em>around-middleware</em>. Each listener receives the arguments plus a
+      <code>next</code> function and wraps the rest of the chain. This is how policy is written: the tool
+      pipeline’s <code>tools/pre-execute</code> is a waterfall where a listener can allow, deny, delay, or
+      transform a tool call.</li>
+  <li><strong>parallel / serial</strong> — awaited fan-out, in parallel or in order.</li>
+</ul>
+
+<div class="box warn">
+  <span class="box-title">The waterfall rule that catches everyone</span>
+  <p>
+    A waterfall listener <strong>must call and return <code>next()</code></strong> to delegate. Returning without
+    it short-circuits the chain — deliberately when a policy owns the decision, catastrophically when
+    you just forgot. The harness conventions state it in bold
+    (<code>AGENTS.md</code>: “Waterfall listeners MUST call <code>next()</code>”). A dropped <code>next()</code> on
+    <code>tools/pre-execute</code> silently blocks <em>every tool in the process</em>. Burn this in now; it
+    will matter if you build chapter 13’s delay plugin.
+  </p>
+<pre><code>ctx.on('some/waterfall', (payload, next) =&gt; {
+  // observe or annotate payload here ...
+  return next()            // ← the load-bearing line
+})</code></pre>
+</div>
+
+<div class="box ts">
+  <span class="box-title">TypeScript corner · arrow functions and callbacks</span>
+  <p>
+    <code>(payload, next) =&gt; { ... }</code> is an <em>arrow function</em> — a compact anonymous function.
+    JavaScript passes functions around like values, so “register a listener” literally means “hand
+    this function to <code>ctx.on</code>, to be called later.” <code>async</code> before a function makes it
+    return a <em>promise</em> (a value that arrives later); inside one, <code>await expr</code> pauses until
+    <code>expr</code> resolves. You will see <code>async execute(args, exec) { ... await ... }</code> in every
+    tool definition.
+  </p>
+</div>
+
+<h2>Idea 5 — Registrations are reversible effects</h2>
+<p>
+  Here is the question that makes or breaks a hot-reloadable system: when a plugin unmounts, how does
+  the framework undo everything it did? Cordis’s answer: every contribution goes through the context,
+  and every one returns (or is wrapped in) a <strong>disposer</strong> — a cleanup function. Registering and
+  cleaning up are one act:
+</p>
+<figure class="code">
+<figcaption><span class="badge you">YOURS</span>effects and disposers</figcaption>
+<pre><code>export function apply(ctx) {
+  // ctx.on() is already an effect — the listener unregisters on unmount.
+  ctx.on('session/event', (session, event) =&gt; { /* observe */ })
+
+  // For anything external, wrap it in ctx.effect() and return the undo:
+  ctx.effect(() =&gt; {
+    const timer = setInterval(() =&gt; console.log('tick'), 1000)
+    return () =&gt; clearInterval(timer)     // ← the disposer
+  })
+}</code></pre>
+</figure>
+<p>
+  Because <em>everything</em> follows this discipline, the harness can hot-reload a plugin, a preset, or
+  your profile’s patch file while sessions run, and nothing leaks. The repo states the convention as
+  a hard rule: “Registrations are effects: every contribution goes through <code>ctx.effect()</code> /
+  <code>ctx.on()</code>; a registry’s <code>register()</code> returns the disposer”
+  (<code>/root/deepseek-harness/AGENTS.md</code>, Conventions).
+</p>
+
+<h2>Composition: plugins are mounted from YAML</h2>
+<p>
+  So far, plugins in isolation. Who decides which plugins run? In this harness: <strong>configuration
+  files, not code</strong>. A <code>cordis.yml</code> is a list of <em>rows</em>, each naming a plugin package and
+  its config. Here are two real rows from the preset you will copy in chapter 6:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 24–33, 44–46)</figcaption>
+<pre><code>- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: &gt;-
+      You are a coding agent powered by the {{model}} model. Your working
+      directory is {{cwd}}.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'</code></pre>
+</figure>
+<p>Reading a row:</p>
+<ul>
+  <li><code>id</code> — the row’s stable address. Patches (next chapter) target rows by id.</li>
+  <li><code>name</code> — the npm package whose plugin gets mounted.</li>
+  <li><code>config</code> — passed to the plugin, validated against its schema. Invalid config fails loud at mount.</li>
+  <li><code>disabled: !!js …</code> — the one place executable expressions are allowed: <code>!!js</code> lets a row
+      switch on the environment (here: skip bash on Windows). Everything else in the file is literal data.</li>
+  <li><code>{{model}}</code>, <code>{{cwd}}</code> — template variables some plugins (like the persona) resolve per-agent.</li>
+</ul>
+<p>
+  This is the deepest thing to understand about the harness: <strong>changing what an agent can do means
+  changing which rows are composed for it.</strong> Not editing core code — editing a list. The
+  <code>editing-cordis-compositions</code> skill that ships with Creator mode opens with exactly that
+  sentence (<code>apps/cli/config/agent-presets/cordis/skills/editing-cordis-compositions/SKILL.md</code>).
+</p>
+
+<h2>Groups and isolate realms (the collision rule, previewed)</h2>
+<p>
+  One more composition construct you will see in chapter 6: rows can be nested in a
+  <strong>group</strong>, and a group can carry an <code>isolate</code> realm. Why: some plugins <em>provide a
+  service</em>, and a service key registers once per realm. If a preset row provided a service into the
+  global realm, the <em>second</em> session mounting that preset would collide with the first. So a preset
+  that owns a service wraps the provider and its consumers in a group with <code>isolate: {thatService: true}</code>,
+  giving each session a private instance. The <code>standard</code> preset does this for its
+  workflow engine:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 174–179)</figcaption>
+<pre><code>- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+    # ... more rows ...</code></pre>
+</figure>
+<p>
+  You do not need to design realms in this course — you inherit correct ones by copying
+  <code>standard</code>. But you must recognize the pattern, because the mount validator will name it when
+  something is wrong (“a preset service must sit behind an isolate realm or move to the host
+  composition”), and chapter 6 teaches you to read that rejection.
+</p>
+
+<h2>What you now know how to read</h2>
+<p>Test yourself on this real row from the base host composition — the one that will spawn your workers:</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/bundle/base/cordis.patch.yml (lines 313–318)</figcaption>
+<pre><code>- id: tool-subagent
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: subagent
+    backgroundMode: continuable</code></pre>
+</figure>
+<p>
+  You should be able to say: “mount the package <code>@deepseek-ai/dsh-tool-subagent</code> as a row
+  addressed <code>tool-subagent</code>; configure it to register a model tool named <code>subagent</code>,
+  backed by the provider registered under the name <code>spawn</code>, creating continuable background
+  children.” If that sentence parses, you are ready for the harness itself.
+</p>
+
+<div class="box test">
+  <span class="box-title">Check your understanding (no machine needed)</span>
+  <ol>
+    <li>A plugin’s <code>apply</code> never ran and the mount report says <em>“waiting for schedule.”</em>
+        What is wrong, and why is it not a bug in the plugin? <span class="muted">(It declared
+        <code>inject: ['schedule']</code> and nothing in the composition provides that service —
+        the fix is a composition change, not a code change.)</span></li>
+    <li>A <code>tools/pre-execute</code> listener logs every call and then returns nothing. What breaks?
+        <span class="muted">(Every tool call in the process silently stops — the listener short-circuited
+        the waterfall by not returning <code>next()</code>.)</span></li>
+    <li>Why does a preset row providing a service need an isolate realm?
+        <span class="muted">(A service registers once per realm; two sessions mounting the preset would
+        collide in the global realm.)</span></li>
+  </ol>
+</div>
+
+<h2>Where to go deeper (optional)</h2>
+<ul>
+  <li><code>/root/deepseek-harness/docs/cordis-primer.md</code> — the five ideas, dispatch table, loader config.</li>
+  <li><code>/root/deepseek-harness/docs/cordis-tutorial/index.md</code> — the framework’s own hands-on walk.</li>
+  <li><code>/root/deepseek-harness/vendor/cordis/README.md</code> — the vendored framework’s package map.</li>
+</ul>
+
+<nav class="pager">
+  <a class="prev" href="01-big-picture.html">← Chapter 1 — The big picture</a>
+  <a class="next" href="03-harness.html">Chapter 3 — Anatomy of the harness →</a>
+</nav>
+</main>
+</body>
+</html>
