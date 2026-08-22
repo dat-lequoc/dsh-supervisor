@@ -100,7 +100,8 @@
          - Scheduled check-in: inspect the worker (list_agents; read its
            artifacts or session log). On track: do nothing but a one-line
            verdict in NOTES.md. Drifting: steer — send_message with a concrete
-           correction (it becomes the worker's next turn; use interrupt_agent
+           correction (if the worker is still in its turn, the message joins at
+           the next step; if idle, it starts the next turn; use interrupt_agent
            first ONLY if the current turn must stop now). Poisoned context:
            interrupt_agent, log the kill, spawn fresh with a revised task.
          - User message: it overrides everything; it is steering.
@@ -281,8 +282,12 @@
   isolate:
     workflowEngine: true
   config:
+    # Shipped send_message queues next-turn and cannot redirect a running
+    # worker. This row is the same control pair, except a running direct
+    # child is steered at its next step (lib/control.js); idle, waiting,
+    # and cold-resume delivery stays on the native ctx.subagents.followup.
     - id: tool-subagent-control
-      name: '@deepseek-ai/dsh-tool-subagent-control'
+      name: dsh-supervisor/control
 
     - id: tool-subagent-list-agents
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
@@ -326,7 +331,8 @@
             what remains) at the path your task names, then report a
             one-paragraph summary.
           - Supervisor messages arriving mid-task are course corrections:
-            comply immediately.
+            they join at the next step — comply immediately; do not finish
+            the previous plan first.
           - Do not spawn your own subagents unless your task allows it.
 
     - id: tool-subagent-fork
