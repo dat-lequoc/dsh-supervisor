@@ -77,13 +77,20 @@ never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) 
 
 ## Worker model choice (vision workers)
 
-`spawn_dev_agent` takes an optional `model` argument (`provider/model-id`). The
-tool's description embeds the live model catalog with each model's native input
-modalities (`[text]` / `[text,image]`), so the supervisor can see which models
-have vision and route image work (screenshots, UI checks, figures) to a
-`[text,image]` model — e.g. `zai/glm-5v-turbo` — while everything else inherits
-its own model. The worker reads image files with `read_image`, which the harness
-only allows on image-capable routes (same modality flag, enforced natively).
+`spawn_dev_agent` may take an optional `model` argument (`provider/model-id`),
+gated by a **user-owned allowlist**: the `models:` list on the `tool-spawn-dev`
+row in the preset (`~/.dsh/.agent-presets/main-agent/agent.cordis.yml`). Only
+models you name there are offered — with the list absent or empty the tool has
+no `model` argument at all and every worker inherits the supervisor's model.
+The agent never discovers routes you did not approve (models cost money).
+
+Each allowed entry is shown in the tool description with its native input
+modalities (`[text]` / `[text,image]`, from the harness model catalog), so the
+supervisor can route image work (screenshots, UI checks, figures) to a vision
+model — the shipped default allows `zai/glm-5v-turbo` — while everything else
+inherits its own model. The worker reads image files with `read_image`, which
+the harness only allows on image-capable routes (same modality flag, enforced
+natively).
 
 ## The Feed tab
 

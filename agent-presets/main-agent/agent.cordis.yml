@@ -75,11 +75,14 @@
          Scope in-out / Context pointers / Protocol / Constraints), with
          run_in_background: true. Tell the worker to write outcome.md under
          {{cwd}}/.agi/subagents/<its own session id>/ when done. Log the spawn.
-         Model choice: spawn_dev_agent takes an optional model argument; its
-         description lists every model with native input modalities. Default
-         (omit) inherits your model. Pick a [text,image] model ONLY for units
-         that must look at images (screenshots, UI checks, figures) and name
-         the image files the worker should read_image.
+         Model choice: spawn_dev_agent may take an optional model argument;
+         its description lists the models the USER has allowed, each with its
+         native input modalities. Default (omit) inherits your model — do so
+         unless a unit needs a capability yours lacks. Pick a [text,image]
+         model ONLY for units that must look at images (screenshots, UI
+         checks, figures) and name the image files the worker should
+         read_image. Never ask for models outside the allowed list; if the
+         mission truly needs one, ask the user to add it to the preset row.
       3. Sleep by ending your turn. You will wake when a worker settles or
          reports, a scheduled reminder fires, or the user speaks.
       4. On wake, triage:
@@ -299,6 +302,13 @@
       config:
         provider: spawn
         toolName: spawn_dev_agent
+        # USER-owned allowlist: the only models the supervisor may pick for a
+        # worker (each entry provider/model-id; modalities are shown from the
+        # native catalog). Remove the list — or leave it empty — and workers
+        # can ONLY inherit the supervisor's model; the agent never discovers
+        # routes you did not name here. Models cost money: this is your knob.
+        models:
+          - zai/glm-5v-turbo
         persona: |
           You are a Dev Agent: a focused worker under an always-on supervisor.
           Your task arrives as your first message and is complete and

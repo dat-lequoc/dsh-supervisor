@@ -57,13 +57,14 @@ persisted Session
 <h3>1 · Spawn</h3>
 <p>
   Your <code>spawn_dev_agent</code> tool (and the generic <code>subagent</code>) takes
-  <code>{ description, prompt, run_in_background }</code> — and, since the bundle's v0.3.0 generic spawn
+  <code>{ description, prompt, run_in_background }</code> — and, since the bundle's generic spawn
   (<code>dsh-supervisor/spawn</code>, mounted by the preset row), an optional <code>model</code>
-  (<code>provider/model-id</code>). The tool description embeds the live model catalog annotated with each
-  model's native input modalities (<code>[text]</code> / <code>[text,image]</code>), so the supervisor can route
-  image work to a vision-capable worker; omitted, the child inherits the supervisor's model
-  (<code>SubagentRequest.agentOptions</code> is a per-request field of <code>ctx.subagents</code>). In background
-  mode the tool calls <code>ctx.subagents.startContinuable()</code>:
+  (<code>provider/model-id</code>) gated by a <strong>user-owned allowlist</strong> (the row's
+  <code>models:</code> config; empty list = no model argument, children only inherit). Allowed entries render
+  in the tool description with their native input modalities (<code>[text]</code> / <code>[text,image]</code>),
+  so the supervisor can route image work to a vision-capable worker the user approved; omitted, the child
+  inherits the supervisor's model (<code>SubagentRequest.agentOptions</code> is a per-request field of
+  <code>ctx.subagents</code>). In background mode the tool calls <code>ctx.subagents.startContinuable()</code>:
 </p>
 <figure class="code">
 <figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
