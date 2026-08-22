@@ -89,7 +89,8 @@ The supervisor's user-owned knobs live in one settings namespace,
 |---|---|---|
 | `workerModels` | allowlist of `provider/model-id` the supervisor may pass to `spawn_dev_agent`'s `model` argument; empty = workers only inherit | next tool call (live) |
 | `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
-| `wakeMinutes` / `questionWaitMinutes` | deployment timing defaults; a workspace's `.agi/config.json` overrides them per mission | next turn (live) |
+| `wakeMinutes` | how often the supervisor wakes to inspect workers (minutes; recurring schedule, ≥ 5) | next turn (live) |
+| `questionWaitMinutes` | how long it waits for an answer to a question before recording an assumption and continuing | next turn (live) |
 
 Changes are **live** — no restart, no new session: the spawn tool re-reads the
 values on every call, and a `SUPERVISOR META-CONFIG` system-prompt section
