@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>9 · Milestone 4: workers — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -155,8 +156,11 @@ interface SubagentSettledMessageSource {
 <h2>The task prompt: the supervisor’s half of the contract</h2>
 <p>
   Native machinery delivers the message; <em>what</em> the message says is your design’s §7.2 structure,
-  now carried entirely in the spawn call (simplification S4 — no brief files). The persona you wrote
-  in chapter 7 already mandates it; here is the shape a good spawn looks like, for your test below:
+  now carried entirely in the spawn call (simplification S4 — no brief files). Roles are whatever the
+  mission needs — implementer, browser operator, and notably <strong>explorer</strong>: a worker whose entire
+  deliverable is a report (survey this repo, map this system), the supervisor’s long-range eyes when
+  its own quick reads aren’t enough. The persona you wrote in chapter 7 already mandates the
+  structure; here is the shape a good spawn looks like, for your test below:
 </p>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>anatomy of a spawn_dev_agent call (what the supervisor should compose)</figcaption>
@@ -198,6 +202,9 @@ run_in_background: true</code></pre>
 </p>
 <div class="box test">
   <span class="box-title">Milestone 4 acceptance — five observations</span>
+  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m4</code> — reads the session event logs
+     and verifies all five observations left their durable evidence (spawn/steer/kill calls, the
+     <code>subagent-settled</code> and <code>subagent-report</code> messages, a child <code>report</code>, outcome.md).</p>
   <ol>
     <li><strong>Spawn returns an id.</strong> Say: <em>“Spawn a dev agent in the background with a slow task:
         role researcher; objective: sleep 90 seconds using bash, then count files in /tmp; protocol

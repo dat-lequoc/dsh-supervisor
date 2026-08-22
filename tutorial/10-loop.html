@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>10 · Milestone 5: the supervision loop — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -31,7 +32,7 @@
 </p>
 <table>
   <tr><th>Wake source</th><th>Native mechanism</th><th>Persona’s triage rule</th></tr>
-  <tr><td>Worker finished</td><td>Settle notice (unconditional, carries final content)</td><td>Read <code>outcome.md</code> + final message → progress line → next unit or done.</td></tr>
+  <tr><td>Worker finished</td><td>Settle notice (unconditional, carries final content)</td><td>Read <code>outcome.md</code> + final message, <strong>verify the deliverable with its own eyes</strong> → progress line → next unit or done.</td></tr>
   <tr><td>Worker blocked</td><td><code>report</code> (wakeup delivery)</td><td>Answer via <code>send_message</code>, or ask the user and keep unblocked work moving.</td></tr>
   <tr><td>Timer</td><td>Recurring reminder (<code>every_seconds = wakeMinutes*60</code>)</td><td>Inspect the worker; on-track → continue; drifting → steer; poisoned → kill + respawn.</td></tr>
   <tr><td>You spoke</td><td>Ordinary user message</td><td>Overrides everything; it is steering.</td></tr>
@@ -80,6 +81,18 @@
 </figure>
 <p>Re-validate the preset after both edits (<code>standingKeyFor</code>, chapter 6 step 4) and start a fresh session for testing.</p>
 
+<div class="box why">
+  <span class="box-title">Field note: idle workers are a resource, not a corpse</span>
+  <p>
+    Observed live: given an amendment after a worker settled, the supervisor did <em>not</em> spawn a
+    fresh worker — it reasoned “idle, not dead — a <code>send_message</code> starts its next turn” and
+    reused the settled worker with its context intact (chapter 9’s cold-resume semantics, applied
+    spontaneously). That is legitimate and often better: the worker already holds the grounding for
+    its deliverable. Let the supervisor make this call; only force a fresh spawn when the old
+    context is poisoned — which is what the kill verb is for.
+  </p>
+</div>
+
 <h2>The full-loop rehearsal</h2>
 <p>
   Now run a real, multi-worker mission and force every branch. Use a goal small enough to finish in
@@ -88,6 +101,9 @@
 </p>
 <div class="box test">
   <span class="box-title">Test it live — milestone 5 acceptance: one mission, every branch</span>
+  <p><strong>Auto-grade after the mission:</strong> <code>python3 /root/dev/tests/grade.py m5</code> — grades the
+     CHANGELOG verb coverage, the assumption, NOTES verdicts, the progress feed, the deliverable,
+     worker count, and timer hygiene.</p>
   <p><strong>Setup:</strong> fresh <code>main-agent</code> session in <code>/root/agi-lab</code>;
   <code>config.json</code>: <code>wakeMinutes: 5</code>, <code>questionWaitMinutes: 2</code>.</p>
   <ol>

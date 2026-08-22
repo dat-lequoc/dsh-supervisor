@@ -1,0 +1,5 @@
+name: Main Agent (Supervisor)
+description: >-
+  Always-on supervisor: locks a goal with you, then loops — spawn a dev
+  subagent, sleep, wake on settle/report/timer, inspect, steer or kill.
+  All durable state in the workspace's .agi/ directory.

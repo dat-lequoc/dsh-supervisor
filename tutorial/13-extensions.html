@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>13 · Optional extensions: real host plugins — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -33,6 +34,21 @@
 <p>The rule of thumb from the toolset’s own docs: dynamic packages “cannot be promoted automatically.
 To keep an experiment, implement a normal … plugin through the regular development workflow”
 (<code>packages/extensions/tool-cordis/README.md</code>). This chapter is that workflow.</p>
+
+<div class="box why">
+  <span class="box-title">This repo already uses the pattern</span>
+  <p>
+    The supervisor project itself is packaged this way: <code>/root/dev/package.json</code> declares
+    <code>dsh.bundle.patch</code>, its <code>cordis.patch.yml</code> inserts the schedule rows plus a setup
+    plugin (<code>lib/index.js</code>, plain ESM, no build step) that installs the bundled
+    <code>main-agent</code> preset into the user preset root at boot — verified end-to-end:
+    <code>dsh plugin --profile web add file:/root/dev</code> registered the dependency <em>and</em> the
+    bundles entry, and a restart from a deleted-preset state auto-installed everything. Read those
+    three files as the minimal worked example before building <code>agi-extras</code> below; note that a
+    plugin whose job is a filesystem <em>installation</em> (not a runtime registration) legitimately has
+    nothing to dispose.
+  </p>
+</div>
 
 <h2>Your template ships with your machine</h2>
 <p>
@@ -115,8 +131,15 @@ To keep an experiment, implement a normal … plugin through the regular develop
 </p>
 
 <h3>1 · <code>agi-tool-delay</code> — the waterfall lesson, applied</h3>
+<p class="muted">
+  The listener signature is verified, not guessed:
+  <code>'tools/pre-execute'(exec: ToolExecution, next: () =&gt; Promise&lt;PreToolDecision&gt;)</code> —
+  a waterfall whose listeners return an allow/deny/ask <em>decision</em>, where “<code>next()</code>
+  delegates to allow” (<code>docs/subsystems/tools.md</code>, line 693). Delay-then-delegate is therefore
+  just an awaited pause before returning <code>next()</code>.
+</p>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>src/delay.ts (core; verify listener params in docs/tool-execution-pipeline.md)</figcaption>
+<figcaption><span class="badge you">YOURS</span>src/delay.ts (core; signature per docs/subsystems/tools.md:693)</figcaption>
 <pre><code>import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -132,6 +155,7 @@ function delaySeconds(cwd: string): number {
 }
 
 export function apply(ctx: Context): void {
+  // Listeners return a PreToolDecision; returning next() delegates to allow.
   ctx.on('tools/pre-execute', async (exec, next) =&gt; {
     const cwd = exec.agent?.session.header.cwd ?? ''
     const s = cwd === '' ? 0 : delaySeconds(cwd)
@@ -175,9 +199,12 @@ export function apply(ctx: Context): void {
 <p>
   Uses two verified contracts: <code>defineTool</code> (chapter 5; full reference
   <code>docs/subsystems/tools.md</code>) and
-  <code>ctx.subagents.listChildren(parentSessionId, signal?)</code> returning entries with
-  <code>activity: 'running' | 'inactive'</code> (<code>docs/subsystems/subagent.md</code>, “Durable
-  enumeration”). One caution from your plan stands: the base mounts
+  <code>ctx.subagents.listChildren(parentSessionId, signal?)</code>, whose entries are a tagged union —
+  child rows are <code>{ kind: 'child', id, activity: 'running' | 'inactive', … }</code> and damaged
+  siblings arrive as <code>{ kind: 'diagnostic', id, reason }</code> rows <em>without</em> an
+  <code>activity</code> field (<code>packages/subagent/subagent/src/list-children.ts</code>, lines 44–57 —
+  so every read of <code>activity</code> must check <code>kind</code> first). One caution from your plan
+  stands: the base mounts
   <code>dsh-tool-call-timeout-policy</code>, so either configure its row above your wake interval or
   return early with “call me again.”
 </p>
@@ -218,8 +245,12 @@ export function apply(ctx: Context): void {
         if (exec.signal.aborted) return 'cancelled'
         await new Promise(r =&gt; setTimeout(r, 5000))
         const now = await ctx.subagents.listChildren(agent.session.id)
+        // A watched child counts as settled when it is no longer a running
+        // child row — including a diagnostic row (kind !== 'child'), which
+        // has no activity field at all.
         const settled = now.filter(e =&gt;
-          running.has(String(e.id)) &amp;&amp; e.activity !== 'running')
+          running.has(String(e.id))
+          &amp;&amp; (e.kind !== 'child' || e.activity !== 'running'))
         if (settled.length &gt; 0) {
           return 'settled: ' + settled.map(e =&gt; String(e.id)).join(', ')
         }
@@ -299,6 +330,26 @@ tmux attach -t dsh    # Ctrl-C → dsh web → detach</code></pre>
         rebuild (effects unwound — chapter 2, idea 5, at packaged scale).</li>
   </ol>
 </div>
+
+<h2>Survey: how the ecosystem packages presets</h2>
+<p>
+  The <a href="https://github.com/topics/dsh-plugin"><code>dsh-plugin</code> GitHub topic</a> is the
+  official discovery channel, and community aggregators (awesome-lists with auto-refreshed indexes;
+  visual marketplaces like WhaleHub) build directly on it. Cloning the preset-shipping plugins in
+  that index shows three distribution shapes, all live in the wild:
+</p>
+<table>
+  <tr><th>Shape</th><th>Example</th><th>Mechanics</th></tr>
+  <tr><td>Script-only</td><td><code>dsh-preset-qa-mode</code></td><td>Preset directory + <code>install.sh</code>/<code>.ps1</code> copying into <code>~/.dsh/.agent-presets/</code>. No package, no bundle. (= this repo’s <code>scripts/install-manual.sh</code> fallback.)</td></tr>
+  <tr><td>Bundle with a copy-at-boot installer</td><td><code>dsh-minimal-msys2</code>, and this repo</td><td><code>dsh.bundle.patch</code> inserts one plugin row; the plugin materializes packaged presets into the user preset root if absent. Discovery is unmemoized, so no restart is needed after the copy; uninstalling the plugin deliberately leaves installed presets alone. Use <code>ctx.logger</code>, not <code>console</code>.</td></tr>
+  <tr><td>Bundle registering packaged assets as roots</td><td><code>dsh-preset-scaffold</code></td><td>Instead of (only) a preset, its plugin registers the package’s own <code>skills/</code> directory as a skill root via <code>FileSystemSkillProvider</code> (<code>includeDefaultRoots: false, customSkillDirs</code>) — its guidance loads into every session on the host profile with no preset switch. A pattern worth stealing when your contribution is <em>knowledge</em>, not composition.</td></tr>
+</table>
+<p class="muted">
+  Also seen: the roster supports deployment-configured extra preset <code>roots</code>
+  (<code>dsh-agent-presets</code> Config), but a bundle patch cannot append to the shipped row’s config
+  without restating it wholesale — which is why copy-at-boot won in practice. For monorepos there is
+  a subpath install form: <code>github:owner/repo#ref&amp;path:/.dsh-plugin</code>.
+</p>
 
 <h2>Promoting the pill (last word on UI)</h2>
 <p>

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>5 · Creator mode and the Cordis toolset — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -194,9 +195,11 @@ Prompt 2:
 <p>Read your own code like a chapter-2 exercise:</p>
 <ul>
   <li>The function body returns a plugin object — <code>name</code> + <code>apply(ctx)</code> (idea 1).</li>
-  <li><code>harness</code> is a sandbox <em>builtin</em> (discoverable via <code>Builtin.listBuiltins</code>) whose
-      <code>registerTool</code>/<code>defineTool</code> pair registers a model tool owned by this plugin’s
-      fiber — so <code>cordis_stop</code> removes it (idea 5).</li>
+  <li><code>harness</code> is a sandbox <em>builtin</em> (discoverable via <code>Builtin.listBuiltins</code>;
+      declared in <code>packages/extensions/cordis-host-runner/src/sandbox.ts</code>, lines 18–36:
+      <code>harness.handle</code>, <code>harness.defineTool</code>, <code>harness.registerTool(ctx, tool)</code>)
+      whose <code>registerTool</code>/<code>defineTool</code> pair registers a model tool owned by this
+      plugin’s fiber — so <code>cordis_stop</code> removes it (idea 5).</li>
   <li><code>parameters: {}</code> and the <code>output</code> block mirror the real
       <code>ToolDefinition</code> contract from <code>docs/subsystems/tools.md</code>: a schema for the value,
       a <code>render</code> that turns it into model-visible content.</li>

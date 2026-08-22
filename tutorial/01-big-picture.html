@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>1 · The big picture — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -40,7 +41,7 @@
   <tr><th>Role</th><th>What it is</th><th>Realized as</th></tr>
   <tr>
     <td><strong>Main Agent</strong> (supervisor)</td>
-    <td>The one long-lived session. Plans, delegates, supervises, talks to you. Never does implementation work itself.</td>
+    <td>The one long-lived session. Plans, delegates, supervises, talks to you. It reads, searches, and verifies with its own tools — it understands what it orders and grades what comes back; only <em>mutation</em> is delegated.</td>
     <td>An <em>agent preset</em> named <code>main-agent</code> that you author in chapter 6, whose persona (chapter 7) encodes the whole protocol.</td>
   </tr>
   <tr>

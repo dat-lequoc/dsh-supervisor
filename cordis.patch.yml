@@ -1,0 +1,19 @@
+# dsh-supervisor bundle patch: mounted as one layer when this package is
+# listed in the profile's dsh.profile.bundles (see README — `dsh plugin add`).
+#
+# Rows:
+#   agi-time-context / agi-schedule — the schedule overlay the supervisor's
+#     timers need (same two plugins as examples/web-schedule). If your profile
+#     ALREADY mounts dsh-schedule elsewhere, disable these two rows with an
+#     id-targeted `disabled: true` patch in your profile's cordis.patch.yml —
+#     the schedule service registers once per process.
+#   agi-supervisor-setup — this package's own plugin: installs the bundled
+#     `main-agent` preset into ${DSH_HOME:-~/.dsh}/.agent-presets/ on boot
+#     (if absent; config syncPreset: if-absent | always | never).
+- insert:
+    - id: agi-time-context
+      name: '@deepseek-ai/dsh-time-context'
+    - id: agi-schedule
+      name: '@deepseek-ai/dsh-schedule'
+    - id: agi-supervisor-setup
+      name: dsh-supervisor

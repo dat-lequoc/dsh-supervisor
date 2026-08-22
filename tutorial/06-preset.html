@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>6 · Milestone 1: the main-agent preset — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -38,11 +39,19 @@
   <p>
     Your design’s amendment A6 planned a custom <code>agi-spawn</code> plugin so each spawn could carry
     its own persona. Native-first observation: the shipped row config already supports a per-row
-    <code>persona</code>, <code>toolFilter</code>, and <code>agentOptions</code> (provider/model)
-    (<code>docs/config-catalog.md</code>, §dsh-tool-subagent). One persona per <em>row</em> is less flexible
-    than one per <em>spawn</em> — but the per-spawn part (“you are a browser operator”, “you are a
-    researcher”) travels perfectly well in the task prompt itself. So: shipped plugin, dedicated row,
-    role in the prompt. If you ever outgrow this, chapter 13 shows the custom tool.
+    <code>persona</code>, <code>toolFilter</code>, and <code>agentOptions</code> (provider/model) — verified in
+    source: the <code>Config</code> interface declares <code>persona?: string</code> (“Per-child persona that
+    shadows <code>deployment:persona</code>”, <code>packages/subagent/tool-subagent/src/index.ts</code>,
+    lines 54–57) and passes it into every start request (line 384); the <code>spawn</code> backend
+    declares <code>persona: true</code> among its capabilities
+    (<code>packages/subagent/subagent-spawn-in-process/src/index.ts</code>, line 42).
+    The nuance: the persona is per <em>row</em>, not per <em>call</em> — the model-facing schema is only
+    <code>{description, prompt, run_in_background}</code>. That’s fine: the protocol part (report when
+    blocked, write outcome.md) is invariant and lives on the row; the role part (“you are a browser
+    operator”) varies per spawn and travels in the task prompt’s <code># Role</code> section. Need truly
+    distinct worker <em>types</em> (different tool filters, different models)? Add more rows —
+    <code>spawn_browser_agent</code>, <code>spawn_researcher</code> — before reaching for chapter 13’s custom
+    tool.
   </p>
 </div>
 
@@ -195,6 +204,8 @@ give me the full error text.</code></pre>
 
 <div class="box test">
   <span class="box-title">Test it live — milestone 1 acceptance</span>
+  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m1</code> — checks the preset files,
+     the <code>spawn_dev_agent</code> row (fields, worker persona, group placement), and that sessions mounted.</p>
   <ol>
     <li><code>standingKeyFor('main-agent')</code> returned clean (“mounted OK” or equivalent — no thrown error).</li>
     <li>The preset appears in the picker with your display name and description.</li>

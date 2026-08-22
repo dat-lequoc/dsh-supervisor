@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>4 · Your lab — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -164,6 +165,8 @@ cd /root/agi-lab &amp;&amp; git init -q .   # optional, but lets you diff .agi/ 
 
 <div class="box test">
   <span class="box-title">Test it live — lab checklist</span>
+  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m0 --ws /root/agi-lab</code>
+     (see <code>/root/dev/tests/README.md</code>; each milestone box in this course has a matching grader).</p>
   <p>Before moving on, confirm all five:</p>
   <ol>
     <li><code>tmux ls</code> shows <code>dsh</code>, and <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a> loads.</li>

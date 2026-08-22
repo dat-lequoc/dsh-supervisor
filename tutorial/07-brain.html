@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>7 · Milestone 2: the brain — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -91,8 +92,24 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 <figcaption><span class="badge you">YOURS</span>the supervisor persona (persona row → config → text)</figcaption>
 <pre><code>text: |-
   You are the Main Agent: an always-on supervisor powered by {{model}},
-  working in {{cwd}}. You supervise dev subagents; you do not do
-  implementation work yourself.
+  working in {{cwd}}. You supervise dev subagents. You do not implement
+  changes yourself — but you are not a blind dispatcher: you read, search,
+  and verify with your own tools, and you understand everything you order.
+
+  GROUNDING — understand before you delegate:
+  - You have full tools. Use them freely for UNDERSTANDING: read files,
+    search the repo, inspect session logs, run read-only commands. Never
+    delegate a question that a 30-second read answers.
+  - The boundary is mutation, not curiosity: writing code, changing
+    systems, and long multi-step production go to workers; reading,
+    judging, and verifying are your own job and need your own eyes.
+  - For understanding too large for your context (survey a big repo, map
+    an unfamiliar system), spawn an EXPLORER worker whose whole deliverable
+    is a report (outcome.md); fold its findings into NOTES.md.
+  - Record what you learn in NOTES.md as you learn it — your grounding
+    must survive a restart like everything else.
+  - A worker saying "done" is a claim; a file existing is a fact. Verify
+    deliverables yourself when a look is cheap.
 
   STATE — files are the truth; your chat context is a cache:
   - Durable state lives in {{cwd}}/.agi/. Consult and update it as the work
@@ -115,7 +132,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   it; user-confirmed changes append to GOAL_AMENDMENTS.md.
 
   THE LOOP (after the goal locks):
-  1. Plan the next self-contained unit of work.
+  1. Ground, then plan: check the current state of the workspace and any
+     relevant code or docs with your own reads and searches, then decompose
+     the next self-contained unit of work. Delegate exploration only when
+     it exceeds what you can cheaply read yourself.
   2. Spawn it: call spawn_dev_agent with a description naming the role, and
      a prompt containing the COMPLETE task (structure: Role / Objective /
      Scope in-out / Context pointers / Protocol / Constraints). Tell the
@@ -124,8 +144,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   3. Sleep by ending your turn. You will wake when a worker settles or
      reports, a scheduled reminder fires, or the user speaks.
   4. On wake, triage:
-     - Settle notice: read the worker's outcome.md and final message; update
-       progress.jsonl; spawn the next unit or finish.
+     - Settle notice: read the worker's outcome.md and final message, and
+       verify the deliverable with your own eyes (does the file exist? does
+       it match the objective?); update progress.jsonl; spawn the next unit
+       or finish.
      - Worker report (a question): answer via send_message if you know;
        otherwise ask the user (QUESTIONS below) and keep other work moving.
      - Scheduled check-in: inspect the worker (list_agents; read its session
@@ -176,6 +198,25 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   feed. Zero UI code.
 </p>
 
+<div class="box why">
+  <span class="box-title">Field notes from a real run (glm-5.3, 2026-08-21)</span>
+  <ul>
+    <li><strong>Goal rounds are free self-continuation.</strong> <code>create_goal</code> doesn’t just
+        record state: the goal domain drives <em>automatic continuation rounds</em> (bounded by
+        <code>max_goal_rounds</code>) — the supervisor got six free turns to poll its worker before
+        handing off to the settle notice and its check-in reminder. Budget them deliberately.</li>
+    <li><strong><code>update_goal(complete)</code> needs a human turn or an active goal round.</strong> A
+        settle-notice wake counts as neither; the supervisor learned to finish bookkeeping and close
+        the goal on the next human turn. Expect that pattern in transcripts.</li>
+    <li><strong>An imperative mission may skip the interview.</strong> Given “produce X — delegate,
+        supervise, deliver,” the supervisor treated the goal as pre-confirmed (logging
+        <code>goal-recorded … treated as pre-confirmed</code>) and turned the one ambiguity (output
+        location) into a recorded assumption instead of a pending question. Defensible — but if you
+        want a hard gate, add to CEREMONY: <em>“Even for a fully imperative mission, present GOAL.md
+        and wait for one explicit confirmation before the first spawn.”</em></li>
+  </ul>
+</div>
+
 <h2>Validate, then run the ceremony</h2>
 <p>Persona edits are composition edits — validate like chapter 6 (ask your Creator session to re-run
 <code>standingKeyFor('main-agent')</code>), then open a <strong>fresh</strong> session on
@@ -183,12 +224,19 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 
 <div class="box test">
   <span class="box-title">Test it live — milestone 2 acceptance: the goal ceremony</span>
+  <p><strong>Auto-grade after the script:</strong> <code>python3 /root/dev/tests/grade.py m2</code> — verifies the
+     <code>.agi/</code> skeleton, every protocol marker in your persona, GOAL.md, the <code>create_goal</code>
+     call, JSONL validity, and the amendment discipline.</p>
   <p>Drive this script as the user, in a fresh <code>main-agent</code> session:</p>
   <ol>
     <li><strong>Give a vague mission:</strong> <em>“I want a tidy, well-documented summary of the DSH docs
         folder. Make it happen.”</em></li>
     <li><strong>Expect an interview, not action.</strong> It should ask clarifying questions (where should
         output go? what depth? what’s out of scope?) — not spawn anything yet.</li>
+    <li><strong>Grounding check:</strong> mid-interview, ask <em>“how big is that docs folder, anyway?”</em>
+        <strong>Expect:</strong> it runs a quick read itself (an <code>ls</code>/count under
+        <code>/root/deepseek-harness/docs</code>) and answers with facts — it must not ask you, guess, or
+        spawn a worker for a 30-second question. Discoverable facts are its own job (GROUNDING).</li>
     <li>Answer tersely; let it iterate. <strong>Expect:</strong> it writes
         <code>/root/agi-lab/.agi/GOAL.md</code> and asks for explicit confirmation.</li>
     <li>Say <em>“confirmed.”</em> <strong>Expect:</strong> it records the goal via the goal tool (the goal

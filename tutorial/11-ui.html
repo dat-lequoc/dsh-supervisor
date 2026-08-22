@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>11 · Milestone 6: UI, the minimal way — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -155,11 +156,16 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
   <li>The slot is registered <em>inside</em> <code>slots.inject(…)</code>, with a fresh <code>id</code> so it adds
       beside shipped entries, and opts into <code>pointerEvents</code> per the overlay contract.</li>
   <li>Filesystem access goes through <code>ctx.get('fs')</code> — the Cordis service, not Node globals
-      (which the sandbox withholds).</li>
+      (which the sandbox withholds). Its read verb is verified:
+      <code>readText(target, signal?)</code> “reads the whole regular text file as one decoded string”
+      (<code>packages/fs/fs/README.md</code>, service table).</li>
 </ul>
 
 <div class="box test">
   <span class="box-title">Test it live — milestone 6 acceptance</span>
+  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m6</code> — confirms the define/run
+     lifecycle and the inspect-before-code discipline from the Creator session's log; the visuals
+     (steps 2–5) stay yours to judge.</p>
   <ol>
     <li><code>cordis_run</code> returns <code>awaiting-approval</code> for the client half → an approval card
         appears in the Creator session → approve it once.</li>

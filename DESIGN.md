@@ -6,9 +6,14 @@ workspace; all state lives in a relative `.agi/` directory there.
 
 Status: design locked after three interview rounds (decisions Q1–Q23, log at bottom),
 then **amended after verifying the harness** (amendments A1–A6, §13), then **simplified
-after user review** (simplifications S1–S4, §14). The feasibility spike is resolved on
-paper — DSH natively ships most of the supervision loop.
-Next step: build per `IMPLEMENTATION_PLAN.md` (M0 smoke test first).
+after user review** (simplifications S1–S4, §14), then **rebuilt native-first** after a
+second harness deep-dive (N1–N7, §15) — the core system now needs **zero custom
+plugins** — and finally **amended for grounding** (G1, §16): the Main Agent is a
+grounded manager, never a blind dispatcher.
+Implementation vehicle: the 15-chapter course in `tutorial/` (each milestone testable
+live) with automated graders in `tests/grade.py` (m0–m7). `IMPLEMENTATION_PLAN.md` v2
+is the index that maps milestones → chapters → graders; the v1 custom-build plan is
+preserved in git history and its salvageable skeletons live in tutorial chapter 13.
 
 ---
 
@@ -396,3 +401,44 @@ Targeted cuts only — everything else in this document stands as designed.
 Unchanged by review: the rest of the `.agi/` state model and file formats (§7),
 question lifecycle (§7.4), goal ceremony (§3.5), `config.json` ownership (§6),
 self-evolution rules (§3.4), supervision verbs (§5), and the UI scope (§8).
+
+## 15. Native-first rebuild
+
+Decision (user, after reviewing the harness ground truth): **build on top of the
+built-ins; reuse and customize everything the harness gives us, so owned changes are
+minimal — especially UI.** Everything the custom plugins were designed to do turned out
+to exist natively (verified in source, citations in `IMPLEMENTATION_PLAN.md` §1). The
+core system is now: one authored preset + a persona + two host-plane config rows + the
+`.agi/` file convention. Where an N entry conflicts with anything above (including §14's
+S3), the N entry wins.
+
+| N | Supersedes | Rebuild |
+|---|---|---|
+| N1 | A6/S2/S3, §2 `agi-spawn` | No custom spawn plugin. The Dev Agent is a second **shipped** `dsh-tool-subagent` row in the `main-agent` preset: `toolName: spawn_dev_agent`, `provider: spawn`, `backgroundMode: continuable`, per-ROW `persona` carrying the invariant worker protocol (verified: `Config.persona`, `tool-subagent/src/index.ts` 54–57/384; spawn provider capability `persona: true`). The per-SPAWN part (role) travels in the task prompt's `# Role` section. `subagentModel` = the row's `agentOptions`. Trade-off accepted: the parallel limit is persona prose again (S3's hard enforcement is deleted with the custom tool); distinct worker types = more rows (`spawn_browser_agent`, …); a custom per-spawn-persona tool remains a documented optional extension. |
+| N2 | Q21/§3.2 `wait_for_agents`, §2 | No blocking wait tool. Sleep = end the turn; wake = the four native inbox deliveries (settle notice, child `report`, schedule reminder, user message). The timeout wake is a **recurring schedule reminder** (`every_seconds = wakeMinutes*60`), armed on spawn, deleted when no workers run. Consequence of the shipped 300 s recurrence floor: `wakeMinutes ≥ 5`. Sub-5-minute cadence is the first legitimate reason to build the optional `wait_for_agents` extension. |
+| N3 | §2/§6 `tool-delay` | Dropped entirely. `toolDelaySeconds` leaves `config.json` (which now holds only `wakeMinutes` and `questionWaitMinutes`). Restorable as an optional `tools/pre-execute` waterfall plugin. |
+| N4 | §2/§5/Q13b `subagent-trace` | No trace plugin. Children ARE the trace: every child is a durable session (`~/.dsh/sessions/<ws>/<id>/session.jsonl.zstd`, one JSON event per line) rendered fully in the web GUI and greppable on disk. Timer-wake inspection = `list_agents` + a log tail, verdict recorded in `NOTES.md`. Structured per-child `trace.log` remains an optional `session/event` extension. |
+| N5 | §2 state service, §8 UI/tabs | No custom tabs, no state route. The shipped UI is the UI: session list = run list; child session view = detail pane + live trace; the goal tool's display = the goal surface; `tail -f` on `progress.jsonl`/`questions.jsonl`/`CHANGELOG.jsonl` = the feed. Q18's display-only rule survives trivially (chat is the control surface). One optional flourish: a ~60-line dynamic client plugin registering a status pill into the shipped `shell.overlay` slot (additive, click-through by contract). Dynamic = process-memory; re-run after restart or promote per §15-ext. |
+| N6 | §2 schedule overlay | Confirmed as the ONLY host-plane change: two `insert` rows (`dsh-time-context`, `dsh-schedule`) in `~/.dsh/profiles/web/cordis.patch.yml` — the live-watched layer, no restart. |
+| N7 | (docs finding) | The shipped `editing-cordis-compositions` skill still teaches removed tools (`cordis_inspect`/`cordis_mount`/`cordis_unmount`). The live toolset is seven tools with a define/run lifecycle: `cordis_inspect_list/_query/_self`, `cordis_define`, `cordis_run`, `cordis_stop`, `cordis_undefine` (`packages/extensions/tool-cordis/src/index.ts`). The skill's planes/copy/validate advice remains correct; only its tool names are stale. Preset authoring still goes through the roster: `copy('standard', 'main-agent', …)` + `standingKeyFor` validation, driven from a Creator-mode (`cordis` preset) session. |
+
+Optional extensions (ext): when native stops being enough, the old custom pieces are
+built as ONE out-of-tree package installed into the profile as a `file:` dependency +
+bundle (`dsh.bundle.patch` manifest field), exactly like the already-installed
+`@dsh-external/dsh-subagent-antigravity` (`/root/dsh-subagent-agy`). Corrected
+skeletons for delay / trace / wait / state-route live in tutorial chapter 13.
+
+Packaging (post-N6 refinement): this repo is itself such a bundle (`dsh-supervisor`).
+Its `cordis.patch.yml` carries the N6 schedule rows (ids `agi-time-context` /
+`agi-schedule`), and a buildless setup plugin (`lib/index.js`) installs the bundled
+`main-agent` preset into the user preset root at boot (non-destructive;
+`syncPreset: if-absent | always | never`). Install on any machine:
+`dsh plugin --profile web add <git-or-path>` + one restart. The manual patch-layer
+route remains as `scripts/install-manual.sh`; the two routes are mutually exclusive
+because the schedule service registers once per process.
+
+## 16. Grounding amendment
+
+| G | Supersedes | Amendment |
+|---|---|---|
+| G1 | §1/§3 phrasing "does no implementation work itself" | The Main Agent is a **grounded manager, not a blind dispatcher**. The delegation boundary is **mutation, not curiosity**: writing code and changing systems go to workers; reading, searching, inspecting, judging, and verifying are the supervisor's own job, with its own full tools. Rules now in the persona (GROUNDING section): never delegate a question a 30-second read answers; for surveys too large for its context, spawn an **explorer** worker whose whole deliverable is a report, folded into `NOTES.md`; grounding is recorded in `NOTES.md` so it survives restarts; a worker's "done" is a claim, a file existing is a fact — deliverables are verified with the supervisor's own eyes before progress is recorded. Loop step 1 is now "ground, then plan." |

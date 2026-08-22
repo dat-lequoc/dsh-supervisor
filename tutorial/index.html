@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Build an Always-On Supervisor Agent on DeepSeek Harness — from scratch</title>
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <nav class="top">
@@ -80,12 +81,17 @@
   <li><strong>Narrative first</strong> — concepts in prose, then the real code.</li>
   <li><strong>Cited code</strong> — every claim about the harness points at a file (and usually lines) in
       <code>/root/deepseek-harness</code> so you can verify it yourself. Code blocks are labeled
-      <span style="background:#dcecdf;color:#14532d;font-size:.75rem;font-weight:700;padding:0 .4em;border-radius:3px">CITED</span>
+      <span class="badge cite">CITED</span>
       (exists in the repo — go read it) or
-      <span style="background:#dbe7f6;color:#1e3a5f;font-size:.75rem;font-weight:700;padding:0 .4em;border-radius:3px">YOURS</span>
+      <span class="badge you">YOURS</span>
       (you will write/paste it).</li>
   <li><strong>Test it live</strong> — a green box at the end of every milestone with the exact steps and the
       expected observation. Do not continue until it passes; later chapters assume it.</li>
+  <li><strong>Auto-grading</strong> — every milestone box names its grader:
+      <code>python3 /root/dev/tests/grade.py m0…m7</code> scores the durable evidence (preset files, patch
+      rows, <code>.agi/</code> state, session event logs) and exits 0/1 at the 90% bar. <code>all</code> runs
+      m0–m6 in one report; <code>doctor</code> shows what it can see. Details:
+      <code>/root/dev/tests/README.md</code>.</li>
 </ul>
 
 <p class="part-label">Part I — Understand the machine (chapters 1–5)</p>

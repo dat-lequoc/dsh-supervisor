@@ -1,0 +1,26 @@
+{
+  "name": "dsh-supervisor",
+  "version": "0.1.0",
+  "description": "Always-on supervisor agent for DeepSeek Harness: the main-agent preset plus the schedule overlay, installable as one dsh bundle",
+  "type": "module",
+  "main": "./lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "agent-presets",
+    "agi-template"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "supervisor",
+    "subagent",
+    "agent"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
