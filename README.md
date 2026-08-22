@@ -75,11 +75,21 @@ User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose change
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
 
+## The Feed tab
+
+Every session's view ring (the tabs holding **Chat** and **Trajectory**) gains a
+**Feed** entry: for a workspace with `.agi/` state it shows the whole run at a
+glance — live goal card, workers (with `outcome.md`), progress timeline, question
+stack, action changelog, notes, and the mission report, refreshing every ~5 s.
+Ships in this bundle as a durable client plugin (`lib/client.js`, served via the
+harness's client-modules scan) plus one host route (`GET /supervisor/feed?ws=…`)
+reading the `.agi/` tree. No frontend rebuild, no dynamic-plugin approval.
+
 ## What's in this repo
 
 | Path | What |
 |---|---|
-| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch`), the three inserted rows, and the setup plugin that installs the preset at boot |
+| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed route), and the Feed tab browser half (`lib/client.js`) |
 | `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the `spawn_dev_agent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |

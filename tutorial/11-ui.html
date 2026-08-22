@@ -20,9 +20,9 @@
   <p class="kicker">Part II — Build · Milestone 6</p>
   <h1>UI, the minimal way</h1>
   <p class="lede">Your design sketched two custom tabs. This chapter shows how much of that the
-  shipped web UI already gives you for free, sets up the observation habits that replace the rest —
-  and then, as the one optional flourish, adds a tiny status pill through a dynamic client plugin,
-  registered into a shipped slot.</p>
+  shipped web UI already gives you for free, then walks the one piece the bundle now ships — the
+  <strong>Feed</strong> view tab, a durable client plugin in the native view ring — and keeps the
+  dynamic status pill as an optional exercise in dynamic plugins.</p>
 </header>
 
 <h2>What the shipped UI already is</h2>
@@ -37,10 +37,43 @@
   <tr><td>Subagents tab: kill/steer buttons</td><td>By design, all input flows through the Main Agent chat (your Q18): “kill the researcher” <em>is</em> the button. The chat is the control surface.</td></tr>
 </table>
 <p>
-  So the honest gap is small: a glanceable, always-visible “what is the supervisor doing right now”
-  indicator, and file-feed convenience. Solve the second with a terminal habit, the first with an
-  optional pill.
+  So the honest gap is small: a glanceable “what is the supervisor doing right now” view and
+  file-feed convenience. The packaged bundle now closes both with a shipped <strong>Feed tab</strong>
+  (below); the terminal habit and the dynamic pill remain as alternatives and exercises.
 </p>
+
+<h2>The shipped Feed tab (what the bundle installs)</h2>
+<p>
+  Since v0.2.0 the <code>dsh-supervisor</code> package ships a durable client plugin: open any
+  session and the view ring (the tabs that hold <em>Chat</em> and <em>Trajectory</em>) gains a
+  <strong>Feed</strong> entry. For a workspace with an <code>.agi/</code> directory it renders the
+  whole run at a glance — goal card (live, from the native <code>goal</code> projection), workers
+  with their <code>outcome.md</code>, the progress timeline, the question stack with
+  answered/assumed badges, the action changelog, notes, and the mission report.
+</p>
+<ul>
+  <li><strong>Browser half</strong> — <code>lib/client.js</code>, a hand-written lazy-CJS factory
+      (<code>window.__ModuleLoader__.load…</code>, the format
+      <code>docs/cookbook/adding-a-settings-card.md</code> §Packaging documents). It registers id
+      <code>supervisor-feed</code> into the shipped <code>conversation.view</code> list slot — additive,
+      never replacing Chat. Served automatically by the client-modules scan: the package declares
+      <code>dsh.client&nbsp;{platform:'web'}</code> + <code>exports["./client"]</code>, and the page gets
+      <code>/plugins/dsh-supervisor/client.js</code> with no frontend rebuild.</li>
+  <li><strong>Host half</strong> — <code>GET /supervisor/feed?ws=&lt;workspace&gt;</code> in
+      <code>lib/index.js</code>: a nested fiber injecting <code>webServer</code> reads the
+      <code>.agi/</code> tree (text capped, JSONL tail-capped) so headless profiles still mount the
+      preset installer untouched.</li>
+  <li><strong>Data stays native-first</strong> — goal from <code>useProjection('goal')</code>, workers
+      from the <code>subagent.list</code> RPC, and only the <code>.agi/</code> files go through the
+      package's own route.</li>
+</ul>
+<div class="box test">
+  <span class="box-title">Test it live — milestone 6 acceptance</span>
+  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m6</code> — verifies the installed
+     client half, the <code>__DSH_BOOT__</code> row, the served bundle, and the feed route. Then the visual:
+     open your <code>main-agent</code> session → click <strong>Feed</strong> in the view ring → goal card,
+     workers, progress timeline all present and refreshing (~5 s).</p>
+</div>
 
 <h2>The observation habit (zero code)</h2>
 <figure class="code">

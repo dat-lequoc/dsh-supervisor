@@ -10,7 +10,7 @@ Usage:
 Each milestone maps to a chapter's "Test it live" box:
     m0 -> ch4  lab checklist            m4 -> ch9  workers (M0 smoke test)
     m1 -> ch6  main-agent preset        m5 -> ch10 supervision loop
-    m2 -> ch7  brain + ceremony         m6 -> ch11 UI pill
+    m2 -> ch7  brain + ceremony         m6 -> ch11 Feed view tab
     m3 -> ch8  schedule                 m7 -> ch12 acceptance (runs m2-m5 too)
 
 Checks read only durable artifacts: the preset files, the profile patch,
@@ -656,40 +656,66 @@ def _(ws):
 
 # -------------------------------------------------------------------- m6: ui
 
-m6 = milestone("m6", "UI: the status pill (chapter 11, optional)")
+m6 = milestone("m6", "UI: the Feed view tab (chapter 11)")
 
-def _creator_sessions(ws):
-    return [d for d in sessions(ws)
-            if session_header(d).get("agentPreset") == "cordis"]
+BASE_URL = os.environ.get("DSH_URL", "http://127.0.0.1:3080")
 
-@m6.check("a dynamic plugin with the pill was defined")
+def _http(path: str):
+    """GET BASE_URL+path -> (status, body-bytes) or (None, reason)."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{BASE_URL}{path}", timeout=10) as resp:
+            return resp.status, resp.read()
+    except Exception as e:  # noqa: BLE001 - grading, not serving
+        return None, str(e).encode()
+
+@m6.check("the installed bundle ships a client half (dsh.client + lib/client.js)")
 def _(ws):
-    for d in _creator_sessions(ws):
-        for call in tool_calls(d, "cordis_define"):
-            args = str(call.get("arguments", ""))
-            if "shell.overlay" in args or "agi-pill" in args or "agi-status" in args:
-                return PASS(f"in {d.name}")
-    return FAIL("no cordis_define with shell.overlay/agi-pill in a Creator session")
+    profile_dir = PATCH_FILE.parent
+    pkg_dir = profile_dir / "node_modules" / "dsh-supervisor"
+    try:
+        manifest = json.loads((pkg_dir / "package.json").read_text())
+    except Exception:
+        return FAIL("dsh-supervisor is not installed in the web profile")
+    if (manifest.get("dsh", {}).get("client", {}).get("platform")) != "web":
+        return FAIL("package.json lacks dsh.client { platform: web }")
+    if not (pkg_dir / "lib" / "client.js").exists():
+        return FAIL("lib/client.js missing from the installed package")
+    return PASS()
 
-@m6.check("it was run (cordis_run) at least once")
+@m6.check("boot graph carries the dsh-supervisor row (client-modules scan)")
 def _(ws):
-    for d in _creator_sessions(ws):
-        if tool_calls(d, "cordis_run"):
-            return PASS(f"in {d.name}")
-    return FAIL("no cordis_run call")
+    status, body = _http("/")
+    if status is None:
+        return WARN(f"dsh web not reachable at {BASE_URL} — {body.decode()[:80]}")
+    ok = b"__DSH_BOOT__" in body and b"dsh-supervisor" in body
+    return PASS() if ok else FAIL("index page's __DSH_BOOT__ graph has no dsh-supervisor row — restart after install?")
 
-@m6.check("slot contract was queried before coding (inspect discipline)")
+@m6.check("the client bundle is served")
 def _(ws):
-    for d in _creator_sessions(ws):
-        for call in tool_calls(d, "cordis_inspect_query"):
-            if "shell.overlay" in str(call.get("arguments", "")) or \
-               "Slots" in str(call.get("arguments", "")):
-                return PASS()
-    return WARN("no Slots query seen — the skill's step 2 was skipped")
+    status, _body = _http("/plugins/dsh-supervisor/client.js")
+    if status is None:
+        return WARN(f"dsh web not reachable at {BASE_URL}")
+    return PASS() if status == 200 else FAIL(f"/plugins/dsh-supervisor/client.js answered {status}")
 
-@m6.check("pill visible; updates on file change; cordis_stop removes it")
+@m6.check("the feed route serves the workspace's .agi state")
 def _(ws):
-    return MANUAL("ch11 test steps 2-5 are visual — grade them in the browser")
+    status, body = _http(f"/supervisor/feed?ws={ws}")
+    if status is None:
+        return WARN(f"dsh web not reachable at {BASE_URL}")
+    if status != 200:
+        return FAIL(f"/supervisor/feed answered {status}: {body.decode()[:120]}")
+    try:
+        doc = json.loads(body)
+    except Exception:
+        return FAIL("feed route returned non-JSON")
+    need = {"goal", "progress", "questions", "changelog", "subagents"}
+    missing = need - doc.keys()
+    return PASS() if not missing else FAIL(f"feed document lacks {sorted(missing)}")
+
+@m6.check("Feed tab renders goal/workers/progress in the session view")
+def _(ws):
+    return MANUAL("open a main-agent session -> view ring -> Feed: goal card, workers, progress timeline")
 
 
 # ------------------------------------------------------------ m7: acceptance
