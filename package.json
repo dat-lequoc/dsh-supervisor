@@ -1,6 +1,6 @@
 {
   "name": "dsh-supervisor",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Always-on supervisor agent for DeepSeek Harness: the main-agent preset plus the schedule overlay, installable as one dsh bundle",
   "type": "module",
   "main": "./lib/index.js",
@@ -35,6 +35,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-settings": ">=0.1.0-rc.6 <0.3.0",
     "@deepseek-ai/dsh-subagent": ">=0.1.0-rc.6 <0.3.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.3.0",
     "@deepseek-ai/schemastery": "^3.18.0"

@@ -75,22 +75,34 @@ User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose change
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
 
-## Worker model choice (vision workers)
+## Meta-config (Settings → Plugins → Supervisor)
 
-`spawn_dev_agent` may take an optional `model` argument (`provider/model-id`),
-gated by a **user-owned allowlist**: the `models:` list on the `tool-spawn-dev`
-row in the preset (`~/.dsh/.agent-presets/main-agent/agent.cordis.yml`). Only
-models you name there are offered — with the list absent or empty the tool has
-no `model` argument at all and every worker inherits the supervisor's model.
-The agent never discovers routes you did not approve (models cost money).
+The supervisor's user-owned knobs live in one settings namespace,
+**`dsh-supervisor`**, editable two ways with the same effect:
 
-Each allowed entry is shown in the tool description with its native input
-modalities (`[text]` / `[text,image]`, from the harness model catalog), so the
-supervisor can route image work (screenshots, UI checks, figures) to a vision
-model — the shipped default allows `zai/glm-5v-turbo` — while everything else
-inherits its own model. The worker reads image files with `read_image`, which
-the harness only allows on image-capable routes (same modality flag, enforced
-natively).
+- **Web UI:** Settings → Plugins → *Supervisor* — the card has an
+  add-from-catalog dropdown for models (each option tagged with its native
+  input modalities) and number fields for the rest.
+- **File:** the `dsh-supervisor:` block in `~/.dsh/settings.yaml`.
+
+| Key | Meaning | Applies |
+|---|---|---|
+| `workerModels` | allowlist of `provider/model-id` the supervisor may pass to `spawn_dev_agent`'s `model` argument; empty = workers only inherit | next tool call (live) |
+| `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
+| `wakeMinutes` / `questionWaitMinutes` | deployment timing defaults; a workspace's `.agi/config.json` overrides them per mission | next turn (live) |
+
+Changes are **live** — no restart, no new session: the spawn tool re-reads the
+values on every call, and a `SUPERVISOR META-CONFIG` system-prompt section
+re-renders them into every request, so the agent always sees the current
+allowlist (with `[text]` / `[text,image]` modality tags), the enforced cap, and
+the timing defaults. The agent never discovers model routes you did not approve
+(models cost money). Vision routing: give a `[text,image]` model (shipped
+example `zai/glm-5v-turbo`) and the supervisor sends image work (screenshots,
+UI checks, figures) there; workers read files with `read_image`, which the
+harness only allows on image-capable routes.
+
+The spawn row's `models:` list in the preset remains as a fallback for
+deployments without the settings namespace; settings win when non-empty.
 
 ## The Feed tab
 
