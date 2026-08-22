@@ -40,8 +40,6 @@ fi
 PATCH="$DSH_HOME/profiles/web/cordis.patch.yml"
 mkdir -p "$(dirname "$PATCH")"
 ROWS='- insert:
-    - id: time-context
-      name: '\''@deepseek-ai/dsh-time-context'\''
     - id: schedule
       name: '\''@deepseek-ai/dsh-schedule'\'''
 if [ -f "$PATCH" ] && grep -q 'dsh-schedule' "$PATCH"; then

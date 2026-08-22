@@ -30,8 +30,9 @@ dsh web
 That's the whole install. The one command registers the package as a **profile bundle**
 (dependency + `dsh.profile.bundles` entry), and at boot the bundle:
 
-1. mounts the schedule overlay (`dsh-time-context` + `dsh-schedule`) the supervisor's
-   timers need, and
+1. mounts the schedule service (`dsh-schedule`) the supervisor's timers need
+   (no `dsh-time-context` — it would inject a timestamp block into every request,
+   and Schedule does not depend on it), and
 2. runs this package's setup plugin (`lib/index.js`), which installs the bundled
    **`main-agent` preset** into `${DSH_HOME:-~/.dsh}/.agent-presets/` — only if absent,
    never clobbering your edits (row config `syncPreset: always | if-absent | never`).
@@ -50,8 +51,8 @@ cp dsh-supervisor/agi-template/config.json ~/agi-lab/.agi/config.json
 and writes the schedule rows into your profile's `cordis.patch.yml` instead. Use ONE
 path, not both — the schedule service registers once per process, so the bundle rows
 and manual patch rows must not coexist. If your profile already mounts
-`dsh-schedule` from elsewhere, disable this bundle's copies with an id-targeted
-`disabled: true` patch on `agi-time-context` / `agi-schedule`.
+`dsh-schedule` from elsewhere, disable this bundle's copy with an id-targeted
+`disabled: true` patch on `agi-schedule`.
 </details>
 
 ## Run

@@ -464,9 +464,11 @@ def _(ws):
 
 m3 = milestone("m3", "Time: the schedule overlay (chapter 8)")
 
-@m3.check("dsh-schedule and dsh-time-context are inserted (profile patch or an installed bundle)")
+@m3.check("dsh-schedule is inserted (profile patch or an installed bundle)")
 def _(ws):
-    need = {"@deepseek-ai/dsh-schedule", "@deepseek-ai/dsh-time-context"}
+    # dsh-time-context is deliberately NOT required (nor wanted): it injects a
+    # per-step timestamp block into every request, and Schedule doesn't need it.
+    need = {"@deepseek-ai/dsh-schedule"}
 
     def inserted_names(path: Path) -> set:
         try:
@@ -496,7 +498,7 @@ def _(ws):
             return PASS(f"via installed bundle {bundle}")
     return FAIL("rows in neither the profile patch nor any installed bundle (ch8 / README)")
 
-@m3.check("composed tree contains the schedule rows (dump-config)")
+@m3.check("composed tree contains the schedule row (dump-config)")
 def _(ws):
     try:
         out = subprocess.run(["dsh", "--profile", "web", "--dump-config"],
@@ -505,8 +507,8 @@ def _(ws):
         return WARN("dsh CLI not on PATH for this shell — skipped")
     except subprocess.TimeoutExpired:
         return WARN("dump-config timed out — check manually")
-    ok = "dsh-schedule" in out.stdout and "dsh-time-context" in out.stdout
-    return PASS() if ok else FAIL("rows absent from the composed tree — YAML typo? watch tmux for hmr/config-update-failed")
+    ok = "dsh-schedule" in out.stdout
+    return PASS() if ok else FAIL("row absent from the composed tree — YAML typo? watch tmux for hmr/config-update-failed")
 
 @m3.check("schedule_create was actually called by the supervisor")
 def _(ws):

@@ -58,10 +58,10 @@
   </p>
 </div>
 
-<h2>The overlay: two rows</h2>
+<h2>The overlay: the shipped example</h2>
 <p>
   Schedule is <em>not mounted by default</em>. The harness ships the opt-in as an example overlay —
-  read it, it is exactly two rows:
+  read it, it is exactly two rows (we will keep only one of them):
 </p>
 <figure class="code">
 <figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/examples/web-schedule/cordis.yml (the shipped overlay)</figcaption>
@@ -74,10 +74,21 @@
 <ul>
   <li><code>dsh-schedule</code> — the service, the session driver, and the model tools
       (<code>schedule_create</code> / <code>schedule_list</code> / <code>schedule_delete</code>).</li>
-  <li><code>dsh-time-context</code> — injects current time (and the browser’s time zone) into requests, so
-      the model can reason about “in 5 minutes” correctly. Schedule’s doc leans on it for time-zone
-      interpretation; mount them together.</li>
+  <li><code>dsh-time-context</code> — injects a current-time block (and the browser’s time zone) into
+      <em>every request step</em>. The shipped example mounts it so natural-language absolute times
+      (“tomorrow 9am”) resolve in the user’s zone — but it is <strong>not</strong> a Schedule dependency
+      (<code>packages/schedule/schedule/README.md</code>: “Time-context is not a Schedule dependency”).</li>
 </ul>
+<div class="box warn">
+  <span class="box-title">We deliberately do NOT mount <code>dsh-time-context</code></span>
+  <p>
+    Its injected block (“Time sampled while preparing turn N, step M… Supersedes earlier snapshots”)
+    re-appears on every step — constant context noise for an always-on agent. The supervisor only ever
+    arms <em>relative</em> timers (<code>after_seconds</code> / <code>every_seconds</code>), which need no
+    time zone. So the overlay below is one row. If your deployment wants zone-local <code>at</code>
+    schedules from natural language, add the time-context row back in your own profile patch.
+  </p>
+</div>
 <p>
   Host plane or preset? Host: the schedule <em>service and driver</em> serve every session and the tools
   register globally — and more practically, this is the shipped overlay shape. So it goes in your
@@ -90,8 +101,6 @@
 <figcaption><span class="badge you">YOURS</span>/root/.dsh/profiles/web/cordis.patch.yml (replace the current <code>[]</code>)</figcaption>
 <pre><code># Profile patch layer — applied after every bundle layer. Live-watched.
 - insert:
-    - id: time-context
-      name: '@deepseek-ai/dsh-time-context'
     - id: schedule
       name: '@deepseek-ai/dsh-schedule'</code></pre>
 </figure>
@@ -120,11 +129,11 @@
   <span class="box-title">Field note: the packaged alternative</span>
   <p>
     Once this project became an installable bundle (<code>dsh plugin --profile web add …</code> — see the
-    repo README and chapter 13), the same two rows ship in the <em>bundle’s own</em>
+    repo README and chapter 13), the same row ships in the <em>bundle’s own</em>
     <code>cordis.patch.yml</code> instead, and this manual edit becomes unnecessary. Never both at once:
     the schedule service registers once per process, so a second mount collides. If the bundle is
-    installed, keep your profile patch at <code>[]</code>; its rows are addressable
-    (<code>agi-time-context</code>/<code>agi-schedule</code>) and can be disabled by an id-targeted patch if
+    installed, keep your profile patch at <code>[]</code>; its row is addressable
+    (<code>agi-schedule</code>) and can be disabled by an id-targeted patch if
     your deployment mounts schedule from somewhere else. The grader accepts either source.
   </p>
 </div>

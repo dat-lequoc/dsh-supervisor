@@ -44,7 +44,7 @@ preserved in git history and its salvageable skeletons live in tutorial chapter 
 | `subagent-trace` | host plugin | auto-captures subagent activity to `trace.log` |
 | `wait_for_agents` | host plugin (tool) | the sleep/wake primitive (the one custom loop piece — A5) |
 | state service | host plugin | serves `.agi/` to the UI over a web route |
-| schedule overlay | shipped rows | `dsh-schedule` + `dsh-time-context` for the question-patience timer |
+| schedule overlay | shipped rows | `dsh-schedule` for the question-patience timer (`dsh-time-context` dropped — see N8) |
 | Progress Tab | client plugin | goal + event feed + question stack (display-only) |
 | Subagents Tab | client plugin | run list + detail pane + kill/steer buttons |
 
@@ -419,7 +419,8 @@ S3), the N entry wins.
 | N3 | §2/§6 `tool-delay` | Dropped entirely. `toolDelaySeconds` leaves `config.json` (which now holds only `wakeMinutes` and `questionWaitMinutes`). Restorable as an optional `tools/pre-execute` waterfall plugin. |
 | N4 | §2/§5/Q13b `subagent-trace` | No trace plugin. Children ARE the trace: every child is a durable session (`~/.dsh/sessions/<ws>/<id>/session.jsonl.zstd`, one JSON event per line) rendered fully in the web GUI and greppable on disk. Timer-wake inspection = `list_agents` + a log tail, verdict recorded in `NOTES.md`. Structured per-child `trace.log` remains an optional `session/event` extension. |
 | N5 | §2 state service, §8 UI/tabs | No custom tabs, no state route. The shipped UI is the UI: session list = run list; child session view = detail pane + live trace; the goal tool's display = the goal surface; `tail -f` on `progress.jsonl`/`questions.jsonl`/`CHANGELOG.jsonl` = the feed. Q18's display-only rule survives trivially (chat is the control surface). One optional flourish: a ~60-line dynamic client plugin registering a status pill into the shipped `shell.overlay` slot (additive, click-through by contract). Dynamic = process-memory; re-run after restart or promote per §15-ext. |
-| N6 | §2 schedule overlay | Confirmed as the ONLY host-plane change: two `insert` rows (`dsh-time-context`, `dsh-schedule`) in `~/.dsh/profiles/web/cordis.patch.yml` — the live-watched layer, no restart. |
+| N6 | §2 schedule overlay | Confirmed as the ONLY host-plane change: one `insert` row (`dsh-schedule`) in `~/.dsh/profiles/web/cordis.patch.yml` — the live-watched layer, no restart. |
+| N8 | N6's `dsh-time-context` row | Dropped. Time-context injects a "Time sampled while preparing turn N, step M …" block into EVERY request step — constant context noise superseding itself each step. It is not a Schedule dependency (verified: `packages/schedule/schedule/README.md` — "Time-context is not a Schedule dependency"), and the supervisor's timers are relative `after_seconds`, never zone-local `at` forms. If a deployment wants natural-language absolute times, mount `@deepseek-ai/dsh-time-context` in its own profile patch. |
 | N7 | (docs finding) | The shipped `editing-cordis-compositions` skill still teaches removed tools (`cordis_inspect`/`cordis_mount`/`cordis_unmount`). The live toolset is seven tools with a define/run lifecycle: `cordis_inspect_list/_query/_self`, `cordis_define`, `cordis_run`, `cordis_stop`, `cordis_undefine` (`packages/extensions/tool-cordis/src/index.ts`). The skill's planes/copy/validate advice remains correct; only its tool names are stale. Preset authoring still goes through the roster: `copy('standard', 'main-agent', …)` + `standingKeyFor` validation, driven from a Creator-mode (`cordis` preset) session. |
 
 Optional extensions (ext): when native stops being enough, the old custom pieces are
@@ -429,8 +430,8 @@ bundle (`dsh.bundle.patch` manifest field), exactly like the already-installed
 skeletons for delay / trace / wait / state-route live in tutorial chapter 13.
 
 Packaging (post-N6 refinement): this repo is itself such a bundle (`dsh-supervisor`).
-Its `cordis.patch.yml` carries the N6 schedule rows (ids `agi-time-context` /
-`agi-schedule`), and a buildless setup plugin (`lib/index.js`) installs the bundled
+Its `cordis.patch.yml` carries the N6 schedule row (id `agi-schedule`; the
+time-context row was dropped per N8), and a buildless setup plugin (`lib/index.js`) installs the bundled
 `main-agent` preset into the user preset root at boot (non-destructive;
 `syncPreset: if-absent | always | never`). Install on any machine:
 `dsh plugin --profile web add <git-or-path>` + one restart. The manual patch-layer
