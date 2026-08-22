@@ -57,8 +57,13 @@ persisted Session
 <h3>1 · Spawn</h3>
 <p>
   Your <code>spawn_dev_agent</code> tool (and the generic <code>subagent</code>) takes
-  <code>{ description, prompt, run_in_background }</code>. With <code>backgroundMode: continuable</code> and
-  background on, the tool calls <code>ctx.subagents.startContinuable()</code>:
+  <code>{ description, prompt, run_in_background }</code> — and, since the bundle's v0.3.0 generic spawn
+  (<code>dsh-supervisor/spawn</code>, mounted by the preset row), an optional <code>model</code>
+  (<code>provider/model-id</code>). The tool description embeds the live model catalog annotated with each
+  model's native input modalities (<code>[text]</code> / <code>[text,image]</code>), so the supervisor can route
+  image work to a vision-capable worker; omitted, the child inherits the supervisor's model
+  (<code>SubagentRequest.agentOptions</code> is a per-request field of <code>ctx.subagents</code>). In background
+  mode the tool calls <code>ctx.subagents.startContinuable()</code>:
 </p>
 <figure class="code">
 <figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
@@ -233,8 +238,8 @@ run_in_background: true</code></pre>
   <p><strong>Also verify the persona took:</strong> open the first child’s session in the UI — its behavior
   should reflect the Dev-Agent persona from your row (e.g. it reports a one-paragraph summary at the
   end). If the child instead behaves like a generic coding agent and never reports, your
-  <code>persona:</code> block on <code>tool-subagent-dev</code> has an indentation problem — re-validate the
-  preset.</p>
+  <code>persona:</code> block on the dev spawn row (<code>tool-spawn-dev</code>) has an indentation problem —
+  re-validate the preset.</p>
 </div>
 
 <div class="box why">

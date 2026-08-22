@@ -75,6 +75,11 @@
          Scope in-out / Context pointers / Protocol / Constraints), with
          run_in_background: true. Tell the worker to write outcome.md under
          {{cwd}}/.agi/subagents/<its own session id>/ when done. Log the spawn.
+         Model choice: spawn_dev_agent takes an optional model argument; its
+         description lists every model with native input modalities. Default
+         (omit) inherits your model. Pick a [text,image] model ONLY for units
+         that must look at images (screenshots, UI checks, figures) and name
+         the image files the worker should read_image.
       3. Sleep by ending your turn. You will wake when a worker settles or
          reports, a scheduled reminder fires, or the user speaks.
       4. On wake, triage:
@@ -281,15 +286,19 @@
         toolName: subagent
         backgroundMode: continuable
 
-    # The Dev Agent (DESIGN.md N1): a dedicated delegation row whose per-row
-    # persona carries the invariant worker protocol; the per-spawn role
-    # travels in the task prompt's "# Role" section.
-    - id: tool-subagent-dev
-      name: '@deepseek-ai/dsh-tool-subagent'
+    # The Dev Agent (DESIGN.md N1, generalized by N10): this package's own
+    # model-generic delegation tool. Same continuable `spawn` children and the
+    # same per-row worker persona as the shipped dsh-tool-subagent row it
+    # replaces — plus an optional per-call `model` argument whose catalog
+    # (embedded in the tool description) annotates every model with its native
+    # input modalities ([text] / [text,image]), so the supervisor can pick a
+    # vision-capable worker when a unit must look at images. The per-spawn
+    # role still travels in the task prompt's "# Role" section.
+    - id: tool-spawn-dev
+      name: dsh-supervisor/spawn
       config:
         provider: spawn
         toolName: spawn_dev_agent
-        backgroundMode: continuable
         persona: |
           You are a Dev Agent: a focused worker under an always-on supervisor.
           Your task arrives as your first message and is complete and

@@ -75,6 +75,16 @@ User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose change
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
 
+## Worker model choice (vision workers)
+
+`spawn_dev_agent` takes an optional `model` argument (`provider/model-id`). The
+tool's description embeds the live model catalog with each model's native input
+modalities (`[text]` / `[text,image]`), so the supervisor can see which models
+have vision and route image work (screenshots, UI checks, figures) to a
+`[text,image]` model — e.g. `zai/glm-5v-turbo` — while everything else inherits
+its own model. The worker reads image files with `read_image`, which the harness
+only allows on image-capable routes (same modality flag, enforced natively).
+
 ## The Feed tab
 
 Every session's view ring (the tabs holding **Chat** and **Trajectory**) gains a
