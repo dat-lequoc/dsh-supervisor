@@ -115,11 +115,27 @@ Ships in this bundle as a durable client plugin (`lib/client.js`, served via the
 harness's client-modules scan) plus one host route (`GET /supervisor/feed?ws=…`)
 reading the `.agi/` tree. No frontend rebuild, no dynamic-plugin approval.
 
+### Full stop (the button in the Feed header)
+
+The native stop square only aborts the current turn — the supervisor's recurring
+check-in reminder (`wakeMinutes`, floor 5 min) is a durable schedule event, so
+the agent re-runs by itself minutes later. The Feed header's **■ Full stop**
+button ends that for real: `POST /supervisor/stop?session=…` aborts the active
+turn, waits for idle, and deletes **every** active schedule reminder from inside
+the agent's exclusive maintenance window (the same locking discipline the
+shipped schedule runtime uses, so a racing dispatch can never poison the
+schedule log), then flushes persistence. Running workers are not killed — each
+may wake the supervisor once with its settle report, but nothing recurs.
+
+Looking for the **Shots** tab (the screenshot player over a browser daemon's
+`<workspace>/shots/` feed)? That is its own standalone plugin, **`dsh-shots`** —
+generic browser-daemon tooling, deliberately not part of the supervisor.
+
 ## What's in this repo
 
 | Path | What |
 |---|---|
-| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed route), and the Feed tab browser half (`lib/client.js`) |
+| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed/models/stop routes), and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
 | `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the `spawn_dev_agent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
