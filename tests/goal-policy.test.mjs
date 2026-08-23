@@ -6,9 +6,12 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
+  continuationToolDecision,
   goalConfirmationPhrase,
   goalDocumentHash,
+  isCeremonySafeTool,
   isGoalConfirmation,
+  isLongRunningContinuation,
   normalizedGoalList,
   normalizedGoalText,
   normalizedRoundCap,
@@ -21,6 +24,36 @@ test('confirmation requires the exact proposal-specific phrase', () => {
   assert.equal(isGoalConfirmation('  confirm goal A1B2C3D4  ', 'a1b2c3d4'), true)
   assert.equal(isGoalConfirmation('yes, CONFIRM GOAL a1b2c3d4', 'a1b2c3d4'), false)
   assert.equal(isGoalConfirmation('CONFIRM GOAL wrong', 'a1b2c3d4'), false)
+})
+
+test('long-running continuation detection is narrow and ceremony tools stay read-only', () => {
+  assert.equal(isLongRunningContinuation('continue our quest'), true)
+  assert.equal(isLongRunningContinuation('resume', true), true)
+  assert.equal(isLongRunningContinuation('continue reading this paragraph'), false)
+  assert.equal(isLongRunningContinuation('what is the mission status?'), false)
+  for (const name of ['get_goal', 'propose_goal', 'read', 'glob', 'grep', 'mnemon_recall']) {
+    assert.equal(isCeremonySafeTool(name), true, name)
+  }
+  for (const name of ['bash', 'subagent', 'schedule_create', 'write', 'edit']) {
+    assert.equal(isCeremonySafeTool(name), false, name)
+  }
+})
+
+test('continuation tool policy enforces goal check and unarmed operation boundary', () => {
+  const base = {
+    text: 'continue our quest',
+    hasDurableMission: true,
+    goalPhase: undefined,
+    goalChecked: false,
+  }
+  assert.equal(continuationToolDecision({ ...base, toolName: 'read' }), 'allow')
+  assert.equal(continuationToolDecision({ ...base, toolName: 'propose_goal' }), 'require-goal-check')
+  assert.equal(continuationToolDecision({ ...base, goalChecked: true, toolName: 'propose_goal' }), 'allow')
+  assert.equal(continuationToolDecision({ ...base, toolName: 'bash' }), 'deny-unarmed')
+  assert.equal(continuationToolDecision({ ...base, toolName: 'schedule_create' }), 'deny-unarmed')
+  assert.equal(continuationToolDecision({ ...base, goalPhase: 'active', toolName: 'bash' }), 'unrestricted')
+  assert.equal(continuationToolDecision({ ...base, goalPhase: 'paused', goalChecked: true, toolName: 'update_goal' }), 'allow')
+  assert.equal(continuationToolDecision({ ...base, text: 'read the status', toolName: 'bash' }), 'unrestricted')
 })
 
 test('GOAL.md renders every ceremony field in a stable canonical form', () => {
@@ -73,6 +106,24 @@ test('preset exposes only the supervisor-owned confirmed goal frontend', async (
   assert.doesNotMatch(preset, /name: '@deepseek-ai\/dsh-tool-goal'/)
   assert.match(goalSource, /name: 'propose_goal'/)
   assert.match(goalSource, /name: 'confirm_goal'/)
+  assert.match(goalSource, /ctx\.on\('tools\/pre-execute'/)
+  assert.match(goalSource, /Operational tools and reminders cannot substitute for a confirmed native goal/)
   assert.doesNotMatch(goalSource, /name: 'create_goal'/)
   assert.doesNotMatch(goalSource, /enum: \['edit'/)
+})
+
+test('preset requires bounded recovery and a durable continuation path', async () => {
+  const preset = await readFile(
+    new URL('../agent-presets/main-agent/agent.cordis.yml', import.meta.url),
+    'utf8',
+  )
+  assert.match(preset, /PERSISTENCE — a recoverable branch is not a blocker/)
+  assert.match(preset, /Exhaust\n\s+a bounded ladder of distinct, safe recovery attempts/)
+  assert.match(preset, /never bypass a security or approval boundary/)
+  assert.match(preset, /A blocked branch does not stop the mission/)
+  assert.match(preset, /leave at least one durable continuation path/)
+  assert.match(preset, /legacy GOAL\.md\n\s+is context only, not autonomous execution authority/)
+  assert.match(preset, /On every direct-human request to start, resume, or continue a\n\s+long-running mission, call get_goal before operational work/)
+  assert.match(preset, /Do not emulate an always-on loop with reminders alone/)
+  assert.match(preset, /schedule a bounded\n\s+later retry instead of ending inert/)
 })

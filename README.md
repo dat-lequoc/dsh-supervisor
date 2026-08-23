@@ -105,6 +105,23 @@ User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose change
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
 
+The preset treats recovery and continuity as explicit invariants. Before it
+escalates a blocker, the supervisor must inspect repository-local runbooks and
+scripts and try a bounded set of distinct safe recoveries; repeated hammering
+and bypassing security or approval boundaries are forbidden. A human-only
+dependency blocks only its branch: independent preparation and verification
+continue. Every unfinished long-running turn must leave a durable wake-up path
+(a running worker, an active confirmed native goal round, or a reminder), so a
+plain chat promise to wait cannot silently strand the mission. A pre-ceremony
+`GOAL.md` remains useful context but does not impersonate an armed native goal:
+every direct request to start, resume, or continue long-running work must first
+check `get_goal` and enter the confirmation ceremony when no active native goal
+exists. Reminders are recovery aids, not a substitute for the goal driver.
+This boundary is enforced by a plugin-owned pre-execution guard, not only by
+persona text: an explicit long-running continuation may inspect durable state,
+but operational tools remain closed until the current turn checks native goal
+state and produces a proposal for later exact human confirmation.
+
 ## Meta-config (Settings → Plugins → Supervisor)
 
 The supervisor's user-owned knobs live in one settings namespace,

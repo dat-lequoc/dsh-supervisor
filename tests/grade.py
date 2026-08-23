@@ -384,10 +384,11 @@ def _(ws):
 
 m2 = milestone("m2", "Brain: persona, .agi contract, goal ceremony (chapter 7)")
 
-PERSONA_MARKERS = ["GROUNDING", "CEREMONY", "QUESTIONS", "subagent",
+PERSONA_MARKERS = ["GROUNDING", "PERSISTENCE", "CEREMONY", "QUESTIONS", "subagent",
                    "send_message", "interrupt_agent", "schedule_create",
                    "CHANGELOG.jsonl", "GOAL.md", "progress.jsonl",
-                   "questions.jsonl", "NOTES.md"]
+                   "questions.jsonl", "NOTES.md", "durable continuation path",
+                   "bounded ladder of distinct, safe recovery attempts"]
 
 @m2.check(".agi skeleton (config + the four state files)")
 def _(ws):
