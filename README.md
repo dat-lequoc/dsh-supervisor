@@ -147,12 +147,15 @@ The supervisor's user-owned knobs live in one settings namespace,
 
 - **Web UI:** Settings → Plugins → *Supervisor* — the card has an
   add-from-catalog dropdown. A synthetic **Current runtime model** choice is
-  enabled by default; fixed models are tagged with native input modalities.
+  enabled by default; fixed models are tagged with native input modalities and
+  their model-advertised reasoning efforts. The adjacent effort dropdown is
+  also catalog-backed rather than assuming every provider uses the same names.
 - **File:** the `dsh-supervisor:` block in `~/.dsh/settings.yaml`.
 
 | Key | Meaning | Applies |
 |---|---|---|
 | `workerModels` | complete allowlist for required `subagent.model`: `runtime/current` and/or exact `provider/model-id` routes; fresh install = `runtime/current`; empty = spawning disabled | next tool call and next tool schema (live) |
+| `workerEffort` | worker reasoning policy: `runtime/current` copies the calling main turn's explicit effort (fresh-install default); `provider/default` sends no explicit effort; any other value is an opaque catalog-advertised effort id such as `high` | next spawn (live) |
 | `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
 | `wakeMinutes` | how often the supervisor wakes to inspect workers (minutes; recurring schedule, ≥ 5) | next turn (live) |
 | `questionWaitMinutes` | how long it waits for an answer to a question before recording an assumption and continuing | next turn (live) |
@@ -163,6 +166,18 @@ only the current approved choices. Execution re-reads settings as well, closing
 the race where a model is removed after a request receives its tool schema. A
 `SUPERVISOR META-CONFIG` system-prompt section re-renders the same policy into
 every request alongside the enforced cap and timing defaults.
+
+Effort selection is independent of model selection but checked against the
+exact resolved worker route. A fixed or inherited effort that route does not
+advertise is refused before provider I/O; it is never clamped or silently
+downgraded. `runtime/current` copies only an explicit value from the current
+main request header. If that turn has no explicit effort, the worker uses
+`provider/default`. The plugin reserves the continuable child's exact id (or
+captures a foreground child's creation edge) and applies a one-use,
+id-filtered request override before its first model call, making the choice part
+of the child's durable `request/header`. Later warm steps and cold resumes both
+recover the logged explicit effort. No Harness patch or custom continuation
+descriptor is needed.
 
 There is deliberately no preset model list and no implicit parent/default
 inheritance. A fresh installation explicitly allows `runtime/current`: choosing
@@ -176,8 +191,9 @@ route; remove every entry to disable spawning.
 The shipped native spawn frontend is absent from the preset because it has no
 `model` argument and can inherit the session's original model even after the
 main agent is routed elsewhere. Every successful tool result names the selected
-route and its native modalities, e.g. `antigravity/gemini-3.7-flash
-[text,image]`, so the hierarchy makes the choice visible. Vision routing: give
+route, native modalities, and effective effort policy, e.g.
+`antigravity/gemini-3.7-flash [text,image] effort=high (same as current main
+turn)`, so the hierarchy makes the choice visible. Vision routing: give
 a `[text,image]` model and the supervisor sends image work (screenshots, UI
 checks, figures) there; workers read files with `read_image`, which the harness
 only allows on image-capable routes.

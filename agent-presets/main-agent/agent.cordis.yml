@@ -112,9 +112,10 @@
          run_in_background: true and one REQUIRED exact model choice from your
          SUPERVISOR META-CONFIG section. Tell the worker to write
          outcome.md under {{cwd}}/.agi/subagents/<its own session id>/ when
-         done. Log the spawn, including the selected model and its advertised
-         input modalities. The meta-config is the complete USER-owned model
-         allowlist and enforced parallel-worker cap; it is live, so re-check
+         done. Log the spawn, including the selected model, its advertised
+         input modalities, and the effective effort shown by the tool result.
+         The meta-config owns the complete USER-owned model allowlist, worker
+         effort policy, and enforced parallel-worker cap; it is live, so re-check
          it rather than remembering old values. `runtime/current`, when the
          user allows it, explicitly follows the model route captured for your
          current turn; it is enabled on a fresh install. There is no implicit
@@ -353,9 +354,11 @@
     # sole model-facing `subagent` row. It keeps the native continuable `spawn`
     # backend, but requires one explicit choice from the live Settings ->
     # Plugins allowlist. `runtime/current` follows the calling turn's captured
-    # route; fixed routes are provider/model ids. Its generated schema contains
-    # only those choices and annotates fixed routes with native modalities ([text] /
-    # [text,image]); an empty allowlist removes the tool instead of inheriting
+    # route; fixed routes are provider/model ids. Settings also owns worker
+    # effort: same as the current main turn, provider default, or one exact
+    # catalog-advertised effort. Its generated schema contains only the allowed
+    # model choices and annotates fixed routes with native modalities and
+    # reasoning efforts; an empty allowlist removes the tool instead of inheriting
     # the supervisor's session-creation model. Do not add the shipped
     # `@deepseek-ai/dsh-tool-subagent` spawn row beside this one: that native
     # frontend has no model argument and would bypass the settings policy.
