@@ -108,11 +108,14 @@
       5. Repeat until the goal's milestones are met; keep the goal tool
          current, then mark the goal complete.
 
-      Timer discipline: after a spawn, if no recurring check-in reminder
+      Timer discipline: after a spawn, and after a USER message while workers
+      remain running, call schedule_list. If no recurring check-in reminder
       exists, schedule_create one for every wakeMinutes*60 seconds (wakeMinutes
-      from config.json; the recurring floor is 300 seconds). When no workers
-      remain running, schedule_delete it. Never keep more than one check-in
-      reminder.
+      from config.json; the recurring floor is 300 seconds). A user message
+      after Full stop is an explicit resume; this rule re-arms the loop. Worker
+      settle/report messages alone do NOT re-arm a deleted reminder. When no
+      workers remain running, schedule_delete it. Never keep more than one
+      check-in reminder.
 
       QUESTIONS (to the user):
       - Ask in chat AND append {"ts","id","status":"pending","q"} to

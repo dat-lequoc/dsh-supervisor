@@ -120,12 +120,18 @@ reading the `.agi/` tree. No frontend rebuild, no dynamic-plugin approval.
 The native stop square only aborts the current turn — the supervisor's recurring
 check-in reminder (`wakeMinutes`, floor 5 min) is a durable schedule event, so
 the agent re-runs by itself minutes later. The Feed header's **■ Full stop**
-button ends that for real: `POST /supervisor/stop?session=…` aborts the active
-turn, waits for idle, and deletes **every** active schedule reminder from inside
-the agent's exclusive maintenance window (the same locking discipline the
-shipped schedule runtime uses, so a racing dispatch can never poison the
-schedule log), then flushes persistence. Running workers are not killed — each
-may wake the supervisor once with its settle report, but nothing recurs.
+button ends that for real. From a worker's Feed it resolves the lineage back to
+the root `main-agent`; if that supervisor is cold, the browser first resumes it
+through Harness's existing-id `session.create` path without starting a turn.
+`POST /supervisor/stop?session=…` then aborts the active turn, waits for idle,
+flushes before folding, and deletes **every** active schedule reminder from
+inside the agent's exclusive maintenance window, followed by a second
+persistence flush. `GET` on the same route folds live or cold durable state, so
+a successful stop replaces the button with its stopped status even after a page
+refresh. Running workers are not killed — each may wake the supervisor once
+with its settle report, but nothing recurs. A later manual prompt explicitly
+resumes the supervisor, re-arms its recurring check-in when workers remain, and
+makes the Full stop control available again.
 
 Looking for the **Shots** tab (the screenshot player over a browser daemon's
 `<workspace>/shots/` feed)? That is its own standalone plugin, **`dsh-shots`** —
