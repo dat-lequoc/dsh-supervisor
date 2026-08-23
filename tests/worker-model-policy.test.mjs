@@ -6,6 +6,8 @@ import {
   currentRuntimeModel,
   RUNTIME_MODEL_KEY,
   selectWorkerModel,
+  WORKER_DENIED_TOOLS,
+  workerToolFilter,
   workerModelKey,
   workerModelLabel,
 } from '../lib/worker-model-policy.js'
@@ -100,6 +102,24 @@ test('fresh-install settings and catalog include runtime/current by default', as
   assert.match(source, /dynamic: true/)
 })
 
+test('workers cannot open a child-local user question that the supervisor cannot observe', async () => {
+  assert.deepEqual(WORKER_DENIED_TOOLS, ['ask_user_question'])
+  assert.deepEqual(workerToolFilter(), { deny: ['ask_user_question'] })
+
+  // Return a fresh request payload: the native descriptor snapshots this
+  // restriction for cold resume, so callers must not share mutable state.
+  const first = workerToolFilter()
+  const second = workerToolFilter()
+  assert.notStrictEqual(first, second)
+  assert.notStrictEqual(first.deny, second.deny)
+
+  const spawnSource = await readFile(new URL('../lib/spawn.js', import.meta.url), 'utf8')
+  assert.match(spawnSource, /toolFilter: workerToolFilter\(\)/)
+  assert.match(spawnSource, /status `running` proves only that a driver is open, NOT that useful progress/)
+  assert.match(spawnSource, /Never repeat a bare .*still running \/ continue monitoring.* verdict/)
+  assert.match(spawnSource, /If the next check-in is still unchanged after that probe, `interrupt_agent`/)
+})
+
 test('the bundled preset has one guarded spawn frontend and no native fallback row', async () => {
   const preset = await readFile(
     new URL('../agent-presets/main-agent/agent.cordis.yml', import.meta.url),
@@ -114,4 +134,10 @@ test('the bundled preset has one guarded spawn frontend and no native fallback r
   )
   assert.doesNotMatch(preset, /toolName: spawn_dev_agent/)
   assert.doesNotMatch(preset, /\n\s+models:\n/)
+  assert.match(preset, /You have no direct user-question channel/)
+  assert.match(preset, /The report tool is your\s+ask-supervisor channel/)
+  assert.match(preset, /call report with the precise question/)
+  assert.match(preset, /status `running`\s+proves only that a driver is open, NOT that useful progress is\s+happening/)
+  assert.match(preset, /Never repeat a bare "still running \/ continue\s+monitoring" verdict/)
+  assert.match(preset, /Still unchanged at the next check-in after the\s+probe: interrupt_agent/)
 })

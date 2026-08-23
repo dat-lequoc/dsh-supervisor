@@ -101,6 +101,19 @@ while Harness's retry policy owns them; a successful retry produces an ordinary
 completion notice, while exhausted retries expose only their final cause. The stopped
 child remains resumable through `send_message`.
 
+Blocked workers likewise cannot strand a question inside their own session. The
+guarded spawn frontend applies a native per-child tool restriction that removes
+`ask_user_question` from both the worker's advertised schema and execution path.
+The child-scoped `report` tool deliberately survives that restriction, so a question
+arrives at the parent as a `subagent-report` message, wakes the supervisor, and can be
+answered with `send_message`. A periodic reminder therefore remains a recovery check,
+not the first place the supervisor discovers that a worker has been waiting for input.
+The live prompt also forbids treating `list_agents: running` as evidence of progress.
+Every check-in must compare a concrete report, artifact/log change, or completed step
+with its prior `NOTES.md` checkpoint. The first unchanged check triggers a status probe;
+the next unchanged check interrupts and recovers or respawns the worker. This policy is
+rendered into every request, so the supervisor cannot legally loop on “still running.”
+
 User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose changes but
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
