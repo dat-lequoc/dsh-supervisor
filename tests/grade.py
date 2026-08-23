@@ -10,7 +10,7 @@ Usage:
 Each milestone maps to a chapter's "Test it live" box:
     m0 -> ch4  lab checklist            m4 -> ch9  workers (M0 smoke test)
     m1 -> ch6  main-agent preset        m5 -> ch10 supervision loop
-    m2 -> ch7  brain + ceremony         m6 -> ch11 Feed view tab
+    m2 -> ch7  brain + goal setup       m6 -> ch11 Feed view tab
     m3 -> ch8  schedule                 m7 -> ch12 acceptance (runs m2-m5 too)
 
 Checks read only durable artifacts: the preset files, the profile patch,
@@ -382,9 +382,9 @@ def _(ws):
 
 # ----------------------------------------------------------------- m2: brain
 
-m2 = milestone("m2", "Brain: persona, .agi contract, goal ceremony (chapter 7)")
+m2 = milestone("m2", "Brain: persona, .agi contract, non-blocking goal setup (chapter 7)")
 
-PERSONA_MARKERS = ["GROUNDING", "PERSISTENCE", "CEREMONY", "QUESTIONS", "subagent",
+PERSONA_MARKERS = ["GROUNDING", "PERSISTENCE", "GOAL SETUP", "QUESTIONS", "subagent",
                    "send_message", "interrupt_agent", "schedule_create",
                    "CHANGELOG.jsonl", "GOAL.md", "progress.jsonl",
                    "questions.jsonl", "NOTES.md", "durable continuation path",
@@ -422,22 +422,21 @@ def _(ws):
         return PASS(f"all {len(PERSONA_MARKERS)} protocol markers present")
     return FAIL(f"persona never mentions: {missing}")
 
-@m2.check("GOAL.md written by the ceremony")
+@m2.check("GOAL.md written during native goal setup")
 def _(ws):
     p = Path(ws) / ".agi" / "GOAL.md"
     if not p.exists():
-        return FAIL("run the ceremony (ch7 test, steps 1-4)")
+        return FAIL("run goal setup (ch7 live test)")
     return PASS(f"{p.stat().st_size} bytes") if p.stat().st_size > 80 else \
         WARN("suspiciously short for objective+constraints+milestones+out-of-scope")
 
-@m2.check("goal recorded through the confirmed supervisor frontend")
+@m2.check("goal armed through the non-blocking supervisor frontend")
 def _(ws):
     for d in supervisor_sessions(ws):
-        proposed = tool_calls(d, "propose_goal")
-        confirmed = tool_calls(d, "confirm_goal")
-        if proposed and confirmed:
-            return PASS(f"proposal + confirmation in {d.name}")
-    return FAIL("no propose_goal + confirm_goal pair in any main-agent session")
+        started = tool_calls(d, "start_goal")
+        if started:
+            return PASS(f"start_goal in {d.name}")
+    return FAIL("no start_goal call in any main-agent session")
 
 @m2.check("progress.jsonl: valid lines with ts+text")
 def _(ws):
@@ -761,7 +760,7 @@ def _(ws):
 
 @m7.check("no re-interview after restart; no duplicate workers")
 def _(ws):
-    return MANUAL("judge from the transcript: 'continue' must not re-run the ceremony")
+    return MANUAL("judge from the transcript: 'continue' must reuse the active native goal without repeating setup")
 
 @m7.check("exit criterion: every step passed twice in a row")
 def _(ws):

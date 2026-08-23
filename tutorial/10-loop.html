@@ -107,9 +107,10 @@
   <p><strong>Setup:</strong> fresh <code>main-agent</code> session in <code>/root/agi-lab</code>;
   <code>config.json</code>: <code>wakeMinutes: 5</code>, <code>questionWaitMinutes: 2</code>.</p>
   <ol>
-    <li><strong>Ceremony:</strong> mission — <em>“Produce SUMMARY.md describing the layout of
-        /root/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Interview → GOAL.md →
-        confirm. <span class="muted">(Deliberately omit where SUMMARY.md should go — seed for step 4.)</span></li>
+    <li><strong>Goal setup:</strong> mission — <em>“Produce SUMMARY.md describing the layout of
+        /root/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Expect
+        <code>get_goal</code> → workspace inspection → <code>start_goal</code>/GOAL.md → same-turn work.
+        <span class="muted">(Deliberately omit where SUMMARY.md should go — seed for step 4.)</span></li>
     <li><strong>Spawn + timer:</strong> expect a guarded <code>subagent</code> call with an explicit allowed model and a complete task prompt
         (Role/Objective/Scope/Context/Protocol/Constraints — read the tool call in the UI and grade
         it), a <code>spawn</code> line in CHANGELOG, and a recurring check-in created.</li>

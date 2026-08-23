@@ -27,8 +27,8 @@
 <h2>The product in one paragraph</h2>
 <p>
   A <strong>Main Agent</strong> runs as one long-lived chat session. When you give it a mission, it
-  interviews you until the goal is unambiguous, writes the goal down, and gets your explicit
-  confirmation — the one moment it is allowed to block on you. From then on it loops forever:
+  inspects durable workspace state and relevant runbooks/scripts, writes a reviewable goal, arms
+  the native continuation loop, and proceeds in the same turn. From then on it loops forever:
   it <em>spawns</em> a worker subagent with a task, <em>sleeps</em>, <em>wakes</em> when the worker finishes
   (or a timer fires, or you send a message), <em>inspects</em> what happened, and then <em>steers</em>,
   <em>kills</em>, or <em>spawns the next unit of work</em>. It never idles waiting for a human: if you
@@ -61,7 +61,7 @@
   The core of the system is a loop the Main Agent runs between your messages. It is worth
   internalizing now, because every later chapter builds a piece of it:
 </p>
-<pre><code>ensure a locked GOAL exists            (chapter 7 — goal ceremony)
+<pre><code>ensure an armed, reviewable GOAL exists (chapter 7 — goal setup)
 loop:
   plan the next unit of work
   spawn a worker with a complete task  (chapter 9 — native subagent tool)
@@ -120,8 +120,8 @@ loop:
 </p>
 <pre><code>.agi/
   config.json          # user-only knobs (patience minutes, wake minutes)
-  GOAL.md              # written by the ceremony; never edited after locking
-  GOAL_AMENDMENTS.md   # append-only, each entry user-confirmed
+  GOAL.md              # written when the native goal starts; reviewable by the user
+  GOAL_AMENDMENTS.md   # append-only steering record for active-goal scope changes
   NOTES.md             # the supervisor's free-form working memory
   progress.jsonl       # one JSON line per milestone/insight — your feed
   questions.jsonl      # question stack: pending → assumed/answered/withdrawn

@@ -19,10 +19,11 @@ preserved in git history and its salvageable skeletons live in tutorial chapter 
 
 ## 1. Core concept
 
-- **Main Agent** — one long-lived DSH session. Interviews the user until the goal is
-  clear, locks it, then loops: spawn subagents → sleep → wake → inspect traces → steer /
-  kill / continue → repeat. Communicates proactively with the user; never hard-blocked
-  waiting on a human except at the goal-confirmation gate.
+- **Main Agent** — one long-lived DSH session. Grounds the requested mission in the
+  workspace, writes a reviewable goal, arms the native loop, then continues: spawn
+  subagents → sleep → wake → inspect traces → steer / kill / continue → repeat.
+  Communicates proactively with the user and blocks only for genuinely human-owned
+  authority or information, never for a generated goal-confirmation ritual.
 - **Dev Agent** — a generic worker with full tool access, personalized per spawn: the
   Main Agent authors each child's **role persona** (browser operator, researcher,
   implementer, …) and a complete, self-contained task — both travel in the spawn call;
@@ -113,14 +114,16 @@ Rules:
 - Preset edits are announced in the Progress Tab feed.
 - May *propose* `config.json` changes as questions, never edit it (§6).
 
-### 3.5 Goal ceremony (Q19)
-Lightweight: interview over several turns (as many as the situation needs) → write
-`GOAL.md` (objective, constraints, milestones, out-of-scope) → user accepts or keeps
-chatting → on acceptance, mark locked. After locking, `GOAL.md` is never edited;
-changes are append-only entries in `GOAL_AMENDMENTS.md`, each user-confirmed. This
-acceptance gate is the one legitimately blocking question in the system. Planning is
-also when the agent asks the user for anything only they can provide (credentials,
-cookies, accounts — see §9).
+### 3.5 Non-blocking goal setup (Q19)
+On a direct long-running request, the supervisor checks native goal state, inspects
+durable mission files plus relevant workspace runbooks/scripts, writes `GOAL.md`
+(objective, constraints, milestones, out-of-scope), arms the native goal, and
+continues in the same turn. `GOAL.md` is user-reviewable but is not an approval gate;
+the user can steer, pause, or stop through ordinary chat. While active, the document
+is not rewritten casually: scope changes are append-only entries in
+`GOAL_AMENDMENTS.md` or become a replacement goal after completion. The supervisor
+asks only for choices, credentials, cookies, or authority that cannot be discovered
+or handled safely (see §9).
 
 ## 4. Dev Agent
 
@@ -216,8 +219,8 @@ merely reads and serves them to the UI.
 ```
 .agi/
   config.json              # user-only meta-config (§6)
-  GOAL.md                  # locked after ceremony, never edited
-  GOAL_AMENDMENTS.md       # append-only, each entry user-confirmed
+  GOAL.md                  # written on native goal start; reviewable by the user
+  GOAL_AMENDMENTS.md       # append-only active-goal steering record
   NOTES.md                 # Main Agent free-form working memory
   progress.jsonl           # event feed rendered by the Progress Tab
   questions.jsonl          # question stack (§7.4)
@@ -291,8 +294,9 @@ directly).
 
 A deliberately open-ended long-horizon exercise. The agent acts on the user's behalf.
 
-1. User gives full instructions → goal ceremony (§3.5). During planning the Main Agent
-   asks the user for credentials / cookies / anything only the user can provide.
+1. User gives full instructions → non-blocking goal setup (§3.5). The Main Agent
+   inspects existing automation first and asks only for credentials / cookies /
+   authority that only the user can provide.
 2. Main Agent spawns a Dev Agent with a browser-operator persona and a complete
    automation task. The subagent sets up its own tooling at runtime (e.g. Playwright)
    and runs a multimodal loop: screen → action → new screen → …
@@ -336,7 +340,7 @@ All five spike questions are answered natively by the harness (sources in
 Sequence: 0 → 1–6 as the **headless core**, proven end-to-end on a toy task (e.g.
 "summarize a repo") exercising the full spawn → sleep → wake → trace-check → settle →
 outcome loop, including one forced steer, one forced kill, and one blocked question →
-then 7–9 (the UI reads state that already exists) → goal-ceremony dry-run → X.com test.
+then 7–9 (the UI reads state that already exists) → non-blocking goal-setup dry-run → X.com test.
 Milestone detail, code skeletons, and verification steps live in
 `IMPLEMENTATION_PLAN.md`.
 
@@ -362,7 +366,7 @@ Milestone detail, code skeletons, and verification steps live in
 | Q16 | (a) config.json user-only, applies to both agents; agent may only propose |
 | Q17 | single Subagents tab; native session views linked per run (A5) |
 | Q18 | all input via Main Agent chat; tabs display-only; late answers = fresh steering; agent may erase self-resolved questions |
-| Q19 | lightweight goal ceremony; locked GOAL.md + append-only amendments |
+| Q19 | non-blocking native goal setup; reviewable GOAL.md + append-only amendments |
 | Q20 | credentials/cookies requested from user during planning |
 | Q21 | (b) settle-or-timeout; timeout from meta-config, no tool argument |
 | Q22 | follow DSH natives — *amended A1/A2: steer = `send_message`, kill = `interrupt_agent` + silence; kill reliability native* |
@@ -399,7 +403,7 @@ Targeted cuts only — everything else in this document stands as designed.
 | S4 | §7.1/§7.2 `brief.md` | No brief files. The role persona and a complete, self-contained task travel in the spawn call; §7.2 now describes the task text's structure. `trace.log` and `outcome.md` remain per run. |
 
 Unchanged by review: the rest of the `.agi/` state model and file formats (§7),
-question lifecycle (§7.4), goal ceremony (§3.5), `config.json` ownership (§6),
+question lifecycle (§7.4), goal setup (§3.5), `config.json` ownership (§6),
 self-evolution rules (§3.4), supervision verbs (§5), and the UI scope (§8).
 
 ## 15. Native-first rebuild
@@ -414,7 +418,7 @@ S3), the N entry wins.
 
 | N | Supersedes | Rebuild |
 |---|---|---|
-| N16 | Q19/N5's native model-facing goal frontend | A production session proved that persona prose did not enforce the ceremony: despite receiving the explicit “write GOAL.md, ask for confirmation, then create” instruction, the model followed the native tool's later `create_goal may infer goal intent` guidance, performed mutations before locking, called `create_goal` three times with zero user-question calls, and overwrote GOAL.md. The preset now disables only `@deepseek-ai/dsh-tool-goal` and mounts `dsh-supervisor/goal`. The host-owned `ctx.goals` service, event-sourced `goal/change` history, projection/UI, CAS revisions, activation state, and race-fenced same-session round driver remain native. The replacement frontend exposes `propose_goal`, `confirm_goal`, `get_goal`, and a no-edit `update_goal`. `propose_goal` canonicalizes objective/constraints/milestones/out-of-scope/round cap into GOAL.md and persists a per-session SHA-256 proposal. `confirm_goal` takes no objective and succeeds only for the exact root caller in a later turn whose direct human text exactly matches the random proposal phrase and whose GOAL.md hash is unchanged; it then calls `ctx.goals.create`. Same-turn self-confirmation, unrelated “yes” replies, modified drafts, subagents, and stale proposal ids fail closed. Native pause/resume authority, exact-goal-round complete/block authority, three-round block floor, wrap-up context, and goal rendering are retained; objective edit is deliberately absent because scope changes require another confirmed ceremony. |
+| N16 | Q19/N5's native model-facing goal frontend | Production sessions showed two opposite failure modes: the native `create_goal` frontend could infer autonomous intent before durable grounding, while the first plugin replacement overcorrected with a random `CONFIRM GOAL …` phrase that the user never configured. That second-turn gate blocked existing workspace automation and caused the supervisor to stop after reading only GOAL.md/NOTES.md instead of inspecting runbooks and scripts. The preset still disables only `@deepseek-ai/dsh-tool-goal` and mounts `dsh-supervisor/goal`; the host-owned `ctx.goals` service, event-sourced `goal/change` history, projection/UI, CAS revisions, activation state, and race-fenced same-session round driver remain native. The replacement frontend now exposes `get_goal`, `start_goal`, and a no-edit `update_goal`. For explicit long-running continuation, a pre-execution guard permits read-only grounding but requires current-turn `get_goal` before `start_goal`; when a bounded workspace scan finds a runbook, automation script, or source entry, a successful current-turn `read` of one such file outside `.agi` is also mandatory. Broad globs and GOAL.md/NOTES.md alone do not pass. Operational tools open immediately after the native goal is armed. `start_goal` is root/direct-human only, canonicalizes objective/constraints/milestones/out-of-scope/round cap into GOAL.md, calls `ctx.goals.create`, and returns to the same turn—no proposal record, hash, phrase, or later confirmation. Native pause/resume authority, exact-goal-round complete/block authority, three-round block floor, wrap-up context, and goal rendering are retained; objective edit remains deliberately absent while a goal is active. |
 | N15 | N14's fixed-route-only fresh-install policy | Add one explicit dynamic allowlist value, `runtime/current`, to the Settings model dropdown and enable it in fresh-install defaults. It is still a required `subagent.model` argument, not an omitted/default path. At execution the plugin reads `exec.agent.session.requestHeader().config`, the route captured for the request currently making the tool call (the same authority Harness uses for image capability checks), resolves that model's modalities, and forwards explicit child `agentOptions`. It deliberately fails closed when the request header is unavailable and never falls back to `agent.options`, whose creation-time route caused N14's stale-GLM incident. Tool output records the resolved real route/modalities. Fixed routes remain available beside it; removing `runtime/current` disables dynamic following, and an empty list still removes the tool. Existing settings are preserved on upgrade; the default applies when the namespace is first installed. |
 | N14 | N1/N10/N11 worker-tool naming, fallback, and inheritance policy | A production failure proved that the shipped `subagent` frontend can bypass the plugin allowlist: it exposes no model argument, and its child snapshots the parent agent's session-creation `options.provider/model`, which may be stale even while live model selection routes the main request elsewhere. The preset therefore removes that native `provider: spawn` row and exposes this package's guarded frontend under the canonical name `subagent` (not a competing `spawn_dev_agent` alias). `dsh-supervisor.workerModels` is now the sole authority: one exact `provider/model-id` argument is required, bare ids are rejected, empty settings disable the tool, and row-config/parent inheritance no longer exist. The tool schema is remounted on settings changes with an enum containing only currently resolved allowed routes and their native `[modalities]`; execution revalidates current settings before spawn and always sends explicit `SubagentRequest.agentOptions`. Start/completion rendering includes the exact route and modalities so the hierarchy exposes what actually ran. The native backend, retries, continuable session handle, settlement wake, and terminal-failure enrichment remain unchanged. |
 | N13 | Native continuable settlement's generic `error` notice | Plugin-only terminal diagnostics: `dsh-supervisor/spawn` cooperatively rewrites an accepted `subagent-settled` message at `agent/pre-step`, preserving its id, source, and single native wake. It resolves the notice's durable inbox time, inspects only the child prefix that existed then, starts after the latest `session/end-seed`, and adds the final logged `turn/end.error` code/message. A successful Harness retry ends `completed` and adds nothing; exhausted retries expose only their final cause. Missing persistence, teardown-only errors, and ambiguous boundaries fail open to the native notice. No Harness source or retry policy changes. |

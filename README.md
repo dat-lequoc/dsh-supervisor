@@ -1,13 +1,13 @@
 # dsh-supervisor — an Always-On Supervisor Agent for DeepSeek Harness
 
-A 24/7 **Main Agent** that locks a goal with you, then loops unattended: spawn a dev
+A 24/7 **Main Agent** that records a reviewable goal, then loops unattended: spawn a dev
 subagent → sleep → wake on settle / report / timer / your message → inspect → steer,
 kill, or continue. Built **native-first** on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 (dsh): the core is one agent preset, a persona, and two schedule rows — zero custom
 loop machinery. This repo **is an installable dsh plugin bundle**: one command puts the
 whole setup on any machine running dsh.
 
-Tested end-to-end on `glm-5.3` (Z.AI): goal ceremony, grounded delegation, mid-flight
+Tested end-to-end on `glm-5.3` (Z.AI): goal setup, grounded delegation, mid-flight
 steering, a mid-turn kill + tighter respawn, the silent-question → recorded-assumption
 flow, deliverable verification (it caught its own buggy link-checker and re-ran it),
 and full process-restart resume. Grader scores: m0–m5 and m7 at 100%.
@@ -63,35 +63,35 @@ Open http://127.0.0.1:3080 → new session → workspace `~/agi-lab` → preset
 > Goal: produce SUMMARY.md describing the layout of `<some docs dir>` — delegate the
 > work, supervise, deliver.
 
-What you should see, in order: it **grounds** (reads the target itself), calls
-`propose_goal` to write `.agi/GOAL.md`, and gives you an exact `CONFIRM GOAL …`
-phrase. It cannot proceed from an imperative brief or confirm its own proposal:
-send that phrase in a later turn, after which `confirm_goal` records and arms the
-native goal. It then calls the guarded `subagent` tool with a complete structured task
-and an explicit Settings-approved model route,
+What you should see, in order: it **grounds** by reading the durable mission state
+and relevant workspace runbooks/scripts, calls `start_goal` to write `.agi/GOAL.md`
+and arm the native goal immediately, then continues in the same turn. No generated
+confirmation phrase or second human reply is required. It then calls the guarded
+`subagent` tool with a complete structured task and an explicit Settings-approved model route,
 arms a recurring check-in reminder, and sleeps. It wakes on the worker's settle
 notice, **verifies the deliverable with its own reads**, logs everything to
 `.agi/CHANGELOG.jsonl`, and continues or finishes. You steer at any time by chatting;
 workers are ordinary sessions in the sidebar — click one to watch it live.
 
-### Confirmed goal frontend
+### Reviewable, non-blocking goal frontend
 
 The preset deliberately disables Harness's native model-facing
 `@deepseek-ai/dsh-tool-goal` row. That frontend permits `create_goal` to infer
-long-running intent from any direct human request, which conflicts with this
-supervisor's required review ceremony. `dsh-supervisor/goal` replaces only that
+long-running intent without first checking durable mission state or workspace
+runbooks. `dsh-supervisor/goal` replaces only that
 frontend; the native `ctx.goals` service, session projection and race-fenced
 goal-round driver remain installed on the host.
 
-The replacement exposes `get_goal`, `propose_goal`, `confirm_goal`, and
-`update_goal`. A proposal captures objective, constraints, milestones,
-out-of-scope and the autonomous round cap in canonical `GOAL.md`, then persists
-its SHA-256 hash per session. Confirmation is accepted only from the root agent,
-in a later turn, when the human message is exactly the proposal-specific phrase
-and the document hash is unchanged. The model cannot pass a replacement
-objective to `confirm_goal`, and `update_goal` deliberately omits `edit`; pause,
-resume, completion, blocking thresholds, native revisions, projections and
-automatic continuation keep their Harness behavior.
+The replacement exposes `get_goal`, `start_goal`, and `update_goal`. `start_goal`
+is available only to the root agent in a direct human turn and only after that
+turn calls `get_goal`. It captures objective, constraints, milestones,
+out-of-scope and the autonomous round cap in canonical `GOAL.md`, calls the native
+goal service immediately, and returns to the same model turn so work continues.
+The generated document is for visibility and steering, not an approval gate: the
+human can inspect it and redirect, pause, or stop through ordinary chat.
+`update_goal` deliberately omits `edit`; pause, resume, completion, blocking
+thresholds, native revisions, projections and automatic continuation retain their
+Harness behavior.
 
 Worker failures are reported only when the native continuable child has actually
 settled. The supervisor preserves that single wake and enriches it from the child's
@@ -111,16 +111,21 @@ scripts and try a bounded set of distinct safe recoveries; repeated hammering
 and bypassing security or approval boundaries are forbidden. A human-only
 dependency blocks only its branch: independent preparation and verification
 continue. Every unfinished long-running turn must leave a durable wake-up path
-(a running worker, an active confirmed native goal round, or a reminder), so a
-plain chat promise to wait cannot silently strand the mission. A pre-ceremony
-`GOAL.md` remains useful context but does not impersonate an armed native goal:
+(a running worker, an active native goal round, or a reminder), so a plain chat
+promise to wait cannot silently strand the mission. A legacy `GOAL.md` remains
+useful context but does not impersonate an armed native goal:
 every direct request to start, resume, or continue long-running work must first
-check `get_goal` and enter the confirmation ceremony when no active native goal
-exists. Reminders are recovery aids, not a substitute for the goal driver.
+check `get_goal`; when no active native goal exists, the supervisor must inspect
+the workspace's relevant runbooks/scripts and call `start_goal`. Reminders are
+recovery aids, not a substitute for the goal driver.
 This boundary is enforced by a plugin-owned pre-execution guard, not only by
 persona text: an explicit long-running continuation may inspect durable state,
 but operational tools remain closed until the current turn checks native goal
-state and produces a proposal for later exact human confirmation.
+state and arms a reviewable goal. Once `start_goal` succeeds, the same turn may
+immediately use the workspace's existing automation. If the workspace contains
+a runbook, automation script, or source entry, `start_goal` is additionally
+denied until the current turn successfully opens one outside `.agi`; a broad
+listing or reading only GOAL.md/NOTES.md does not satisfy grounding.
 
 ## Meta-config (Settings → Plugins → Supervisor)
 
@@ -200,8 +205,8 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 
 | Path | What |
 |---|---|
-| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, setup/routes, confirmed native-goal frontend, final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
-| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, confirmed ceremony, loop, questions), plugin-owned goal frontend, and the sole settings-guarded `subagent` worker row |
+| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, setup/routes, non-blocking native-goal frontend, final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
+| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, non-blocking goal setup, loop, questions), plugin-owned goal frontend, and the sole settings-guarded `subagent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
 | `tests/grade.py` | Automated milestone graders (m0–m7); `tests/drive.py` drives sessions headlessly over the HTTP RPC |

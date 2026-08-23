@@ -61,7 +61,7 @@
 <h3>Supervisor-behavior problems (chapters 7, 10, 12)</h3>
 <table>
   <tr><th>Symptom</th><th>Class → fix</th></tr>
-  <tr><td>Skips the interview / spawns before confirmation</td><td>Protocol violation → make the gate explicit and blocking in CEREMONY.</td></tr>
+  <tr><td>Starts a goal without inspecting existing scripts</td><td>Protocol violation → strengthen GOAL SETUP so durable state and relevant runbooks/scripts are read before <code>start_goal</code>.</td></tr>
   <tr><td>Blocks forever on a question</td><td>Check chapter 8’s patience path actually works (reminder created? schedule mounted?), then strengthen QUESTIONS wording.</td></tr>
   <tr><td>Steers healthy workers on every timer wake</td><td>Protocol gap → define “on track” concretely and prescribe doing nothing.</td></tr>
   <tr><td>Kills where a steer would do</td><td>Persona: “interrupt_agent first ONLY if the current turn must stop now” — move it adjacent to the steer rule; models read locally.</td></tr>
@@ -123,10 +123,10 @@
   <li><strong>Give workers richer capabilities per task</strong> — the spawn row supports
       <code>toolFilter</code>; missions like browser automation mean the worker installs Playwright
       itself, exactly as the design intended.</li>
-  <li><strong>Run the real mission</strong> — the ceremony scales to “grow this X.com account”; the
-      credentials conversation happens where the persona already puts it (planning).</li>
+  <li><strong>Run the real mission</strong> — non-blocking goal setup scales to “grow this X.com account”;
+      credentials are requested only when the existing workspace setup cannot supply them safely.</li>
   <li><strong>Self-evolution (design §3.4)</strong> — let the supervisor propose persona diffs as questions,
-      applied by you. You now know exactly why the confirmation gate matters.</li>
+      applied by you. Ordinary chat remains the steering and stop surface.</li>
   <li><strong>Contribute upstream</strong> — you found the stale skill (chapter 5). The repo takes issues and
       discussions; <code>CONTRIBUTING.md</code> is short.</li>
 </ul>

@@ -54,7 +54,7 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
 <table>
   <tr><th>#</th><th>You</th><th>Must happen</th><th>Proof</th></tr>
   <tr><td>1</td><td>“Goal: produce SUMMARY.md describing the layout of /root/deepseek-harness/docs — delegate the work, supervise, deliver.” <span class="muted">(Say nothing about where SUMMARY.md goes.)</span></td>
-      <td>Interview → <code>propose_goal</code>/<code>GOAL.md</code> → exact confirmation phrase → native goal recorded only after you send that phrase in a later turn.</td>
+      <td><code>get_goal</code> → inspect durable state and relevant runbooks/scripts → <code>start_goal</code>/<code>GOAL.md</code> → native goal armed and work continues in the same turn.</td>
       <td><code>GOAL.md</code>; goal visible in UI; a progress line.</td></tr>
   <tr><td>2</td><td><em>(nothing)</em></td>
       <td>First worker spawned with a complete structured task; check-in reminder armed; spawn logged.</td>
@@ -75,7 +75,7 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
       <td>Settle notice consumed; outcome read; SUMMARY.md delivered at the assumed location; goal completed; check-in reminder deleted.</td>
       <td><code>SUMMARY.md</code>; final progress line; <code>schedule_list</code> empty; worker’s <code>outcome.md</code> under <code>.agi/subagents/&lt;id&gt;/</code>.</td></tr>
   <tr><td>8</td><td>“Actually — also mention the cookbook subfolder in one paragraph.” <span class="muted">(after completion)</span></td>
-      <td>Treated as a goal amendment: confirmation → <code>GOAL_AMENDMENTS.md</code> entry → one more small delegation or direct trivial edit, per its judgment — with the choice logged.</td>
+      <td>Treated as post-completion steering: <code>GOAL_AMENDMENTS.md</code> entry → a new small native goal or direct trivial edit, per its judgment — with the choice logged.</td>
       <td>Amendment entry; updated SUMMARY.md.</td></tr>
 </table>
 
@@ -137,7 +137,7 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 </p>
 <table>
   <tr><th>Finding</th><th>Class</th><th>Fix</th></tr>
-  <tr><td>Spawned before the goal was confirmed</td><td>Mechanism regression</td><td>Verify the preset mounts <code>dsh-supervisor/goal</code>, has no native <code>create_goal</code>, and rejects same-turn confirmation.</td></tr>
+  <tr><td>Spawned before checking goal state or workspace scripts</td><td>Mechanism regression</td><td>Verify the preset mounts <code>dsh-supervisor/goal</code>, has no native <code>create_goal</code>, and requires <code>get_goal</code> before <code>start_goal</code>.</td></tr>
   <tr><td>Forgot the CHANGELOG line for a steer</td><td>Protocol violation</td><td>Move logging into the verb’s own sentence: “Steer = send_message + one CHANGELOG line, always together.”</td></tr>
   <tr><td>Answered its own question instantly instead of waiting</td><td>Protocol gap</td><td>Add: “A question you can answer by inspection is not a user question — resolve it and move on; only user-owned unknowns enter questions.jsonl.”</td></tr>
   <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>
@@ -147,9 +147,9 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 <h2>Where you stand</h2>
 <p>
   Passing this chapter means you have what the design document calls the headless core — goal
-  ceremony, delegation, supervision, questions, files, resilience — built from a preset, a persona,
+  goal setup, delegation, supervision, questions, files, resilience — built from a preset, a persona,
   two YAML rows, and a file convention. The 24/7 mission (X.com growth or anything else) is now “run
-  the ceremony with a bigger goal and let it loop,” plus whatever worker tooling that mission needs —
+  start a bigger goal and let it loop,” plus whatever worker tooling that mission needs —
   which workers install themselves at runtime, per their tasks.
 </p>
 <p>

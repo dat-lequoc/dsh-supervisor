@@ -20,8 +20,8 @@
   <p class="kicker">Part II — Build · Milestone 2</p>
   <h1>The brain: persona, protocol, and the <code>.agi/</code> contract</h1>
   <p class="lede">A supervisor is mostly prose. This chapter writes the persona that turns your
-  preset into the Main Agent — the goal ceremony, the question protocol, the file discipline —
-  and tests the ceremony end to end with the supervisor's confirmed frontend over the native goal domain.</p>
+  preset into the Main Agent — non-blocking goal setup, the question protocol, the file discipline —
+  and tests the supervisor's workspace-grounded frontend over the native goal domain.</p>
 </header>
 
 <h2>Where a persona lives and how it works</h2>
@@ -72,8 +72,8 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   <tr><th>File</th><th>Owner</th><th>Format / rule</th></tr>
   <tr><td><code>config.json</code></td><td><strong>You only.</strong> The agent may propose changes as questions, never edit.</td>
       <td><code>wakeMinutes</code>: periodic check-in interval. <code>questionWaitMinutes</code>: patience before assuming. (The design’s <code>toolDelaySeconds</code> is dropped in the native-first build; chapter 13 restores it if wanted.)</td></tr>
-  <tr><td><code>GOAL.md</code></td><td>Agent writes once, at ceremony end. Never edited after locking.</td>
-      <td>Objective, constraints, milestones, out-of-scope. Changes go to <code>GOAL_AMENDMENTS.md</code>, append-only, each user-confirmed.</td></tr>
+  <tr><td><code>GOAL.md</code></td><td>Agent writes when it starts the native goal. Reviewable by the user; not an approval gate.</td>
+      <td>Objective, constraints, milestones, out-of-scope. Active-goal scope steering goes to <code>GOAL_AMENDMENTS.md</code>, append-only.</td></tr>
   <tr><td><code>NOTES.md</code></td><td>Agent.</td><td>Free-form working memory. Consulted and updated as work demands — no mandated ritual (design simplification S1).</td></tr>
   <tr><td><code>progress.jsonl</code></td><td>Agent.</td><td>One <code>{"ts","text"}</code> line per milestone or key insight — the human-readable feed.</td></tr>
   <tr><td><code>questions.jsonl</code></td><td>Agent.</td><td>One line per question: <code>{"ts","id","status","q", ...}</code>; status ∈ <code>pending → assumed | answered | withdrawn</code>.</td></tr>
@@ -123,15 +123,14 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   - Record milestones and key insights as {"ts","text"} lines in
     .agi/progress.jsonl — the user follows you at a glance there.
 
-  CEREMONY (once per goal): interview the user over as many turns as needed
-  until objective, constraints, milestones, and out-of-scope are unambiguous.
-  Ask for anything only the user can provide (credentials, cookies,
-  accounts). Then call propose_goal with objective, constraints, milestones,
-  and out-of-scope. It writes {{cwd}}/.agi/GOAL.md and returns an exact
-  confirmation phrase. Show both and end the turn. Even an imperative mission
-  is not confirmation. Only after the user sends that phrase in a later turn
-  may you call confirm_goal. GOAL.md is then locked: never edit it;
-  user-confirmed changes append to GOAL_AMENDMENTS.md.
+  GOAL SETUP (once per goal): derive objective, constraints, milestones,
+  and out-of-scope from the direct request and durable workspace evidence.
+  Inspect relevant runbooks and scripts first. Ask only for a material choice
+  or authority that cannot be discovered or handled safely. Then call
+  start_goal. It writes {{cwd}}/.agi/GOAL.md, arms the native goal immediately,
+  and returns to the same turn. Do not ask for a confirmation phrase and do
+  not stop: proceed directly into THE LOOP. The user can inspect GOAL.md and
+  steer, pause, or stop through ordinary chat.
 
   THE LOOP (after the goal locks):
   1. Ground, then plan: check the current state of the workspace and any
@@ -194,13 +193,13 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   </p>
 </div>
 
-<h2>The confirmed frontend over the native goal domain</h2>
+<h2>The non-blocking frontend over the native goal domain</h2>
 <p>
   The native goal <em>service</em>, projection, and session driver remain host-side. The preset disables
   only the inferred-intent <code>@deepseek-ai/dsh-tool-goal</code> frontend and mounts
-  <code>dsh-supervisor/goal</code>. Its <code>propose_goal</code> writes and hashes GOAL.md;
-  <code>confirm_goal</code> requires the exact phrase in a later direct-human turn and then calls the
-  native service. The web UI still renders the current goal for the session. That
+  <code>dsh-supervisor/goal</code>. Its <code>start_goal</code> writes a canonical GOAL.md and
+  immediately calls the native service from a direct-human turn after <code>get_goal</code>.
+  It then returns control to the same model turn. The web UI still renders the current goal for the session. That
   display is your Progress-tab replacement for the goal itself; <code>progress.jsonl</code> covers the
   feed. Zero UI code.
 </p>
@@ -208,45 +207,46 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 <div class="box why">
   <span class="box-title">Field notes from a real run (glm-5.3, 2026-08-21)</span>
   <ul>
-    <li><strong>Goal rounds are free self-continuation.</strong> <code>confirm_goal</code> arms the
+    <li><strong>Goal rounds are free self-continuation.</strong> <code>start_goal</code> arms the
         native domain, which drives <em>automatic continuation rounds</em> (bounded by
         <code>max_goal_rounds</code>) — the supervisor got six free turns to poll its worker before
         handing off to the settle notice and its check-in reminder. Budget them deliberately.</li>
     <li><strong><code>update_goal(complete)</code> needs a human turn or an active goal round.</strong> A
         settle-notice wake counts as neither; the supervisor learned to finish bookkeeping and close
         the goal on the next human turn. Expect that pattern in transcripts.</li>
-    <li><strong>An imperative mission cannot skip the interview.</strong> The frontend has no
-        <code>create_goal</code> tool. Same-turn confirmation, an unrelated “yes”, a changed GOAL.md,
-        or a stale proposal id is rejected before the native goal can be armed.</li>
+    <li><strong>An imperative mission cannot skip grounding.</strong> The frontend has no
+        inferred-intent <code>create_goal</code> tool. The continuation guard requires a current
+        <code>get_goal</code> check and permits read-only inspection before <code>start_goal</code>;
+        operational tools open immediately afterward.</li>
   </ul>
 </div>
 
-<h2>Validate, then run the ceremony</h2>
+<h2>Validate, then run goal setup</h2>
 <p>Persona edits are composition edits — validate like chapter 6 (ask your Creator session to re-run
 <code>standingKeyFor('main-agent')</code>), then open a <strong>fresh</strong> session on
 <code>main-agent</code> in <code>/root/agi-lab</code>.</p>
 
 <div class="box test">
-  <span class="box-title">Test it live — milestone 2 acceptance: the goal ceremony</span>
+  <span class="box-title">Test it live — milestone 2 acceptance: non-blocking goal setup</span>
   <p><strong>Auto-grade after the script:</strong> <code>python3 /root/dev/tests/grade.py m2</code> — verifies the
      <code>.agi/</code> skeleton, every protocol marker in your persona, GOAL.md, the
-     <code>propose_goal</code>/<code>confirm_goal</code> pair, JSONL validity, and amendment discipline.</p>
+     <code>start_goal</code> call, JSONL validity, and amendment discipline.</p>
   <p>Drive this script as the user, in a fresh <code>main-agent</code> session:</p>
   <ol>
     <li><strong>Give a vague mission:</strong> <em>“I want a tidy, well-documented summary of the DSH docs
         folder. Make it happen.”</em></li>
-    <li><strong>Expect an interview, not action.</strong> It should ask clarifying questions (where should
-        output go? what depth? what’s out of scope?) — not spawn anything yet.</li>
+    <li><strong>Expect grounding before action.</strong> It should inspect the target, durable state,
+        and any relevant runbooks/scripts. It asks only when a material choice cannot be discovered
+        or handled with a safe reversible assumption.</li>
     <li><strong>Grounding check:</strong> mid-interview, ask <em>“how big is that docs folder, anyway?”</em>
         <strong>Expect:</strong> it runs a quick read itself (an <code>ls</code>/count under
         <code>/root/deepseek-harness/docs</code>) and answers with facts — it must not ask you, guess, or
         spawn a worker for a 30-second question. Discoverable facts are its own job (GROUNDING).</li>
-    <li>Answer tersely; let it iterate. <strong>Expect:</strong> <code>propose_goal</code> writes
-        <code>/root/agi-lab/.agi/GOAL.md</code> and returns an exact <code>CONFIRM GOAL …</code> phrase.</li>
-    <li>Send that phrase exactly in a later turn. <strong>Expect:</strong> <code>confirm_goal</code> records the native goal (the goal
-        appears in the session’s UI), and appends a line to <code>progress.jsonl</code>.</li>
+    <li><strong>Expect:</strong> <code>start_goal</code> writes
+        <code>/root/agi-lab/.agi/GOAL.md</code>, records the native goal (visible in the session UI),
+        and continues into work in the same turn. No generated confirmation phrase should appear.</li>
     <li><strong>Amendment discipline:</strong> say <em>“actually, also cover the cookbook subfolder.”</em>
-        <strong>Expect:</strong> an entry in <code>GOAL_AMENDMENTS.md</code> after your confirmation —
+        <strong>Expect:</strong> an entry in <code>GOAL_AMENDMENTS.md</code> recording your steering —
         <code>GOAL.md</code> itself untouched (<code>stat -c %Y .agi/GOAL.md</code> before/after to prove it).</li>
     <li><strong>Config discipline:</strong> say <em>“set questionWaitMinutes to 2 for me.”</em>
         <strong>Expect:</strong> it refuses to edit <code>config.json</code> and instead proposes the change
@@ -261,10 +261,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   <span class="box-title">Why the interview is worth being strict about</span>
   <p>
     Everything downstream — task decomposition, worker prompts, milestone checks — inherits its
-    quality from <code>GOAL.md</code>. The ceremony is also your one deliberately blocking interaction, so
-    it is where the human puts in the minutes that save the machine hours. If the agent under-asks,
-    tighten the CEREMONY paragraph (e.g. add “ask at least about output location, success criteria,
-    and out-of-scope”) and re-test; persona iteration is normal and cheap.
+    quality from <code>GOAL.md</code>. The setup should therefore be grounded without becoming a
+    mandatory second-turn approval ritual. If the agent skips existing automation, tighten the
+    GOAL SETUP paragraph to name the relevant runbook/script classes and re-test; persona iteration
+    is normal and cheap.
   </p>
 </div>
 

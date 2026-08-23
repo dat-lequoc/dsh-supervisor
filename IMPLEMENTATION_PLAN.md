@@ -44,7 +44,7 @@ deployment version changes, re-verify this table first.
 |---|---|---|---|---|
 | 0 | Lab sanity (process, UI, patch layer, workspace) | nothing to build | ch. 4 (+1–3, 5 for concepts) | `grade.py m0` |
 | 1 | `main-agent` preset | `agentPresets.copy('standard', …)` + `preset.yml` + one plugin-owned `subagent` row (N14) in the delegation group | ch. 6 | `grade.py m1` |
-| 2 | Supervisor brain | persona (GROUNDING/STATE/CEREMONY/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + `.agi/` skeleton (`config.json` = `wakeMinutes`, `questionWaitMinutes` only — N3) | ch. 7 | `grade.py m2` |
+| 2 | Supervisor brain | persona (GROUNDING/STATE/GOAL SETUP/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + `.agi/` skeleton (`config.json` = `wakeMinutes`, `questionWaitMinutes` only — N3) | ch. 7 | `grade.py m2` |
 | 3 | Time | schedule overlay: two insert rows in `profiles/web/cordis.patch.yml` (N6); patience = one-shot, check-in = recurring (N2) | ch. 8 | `grade.py m3` |
 | 4 | Workers | native loop exercised by hand: spawn / steer (`send_message`) / kill (`interrupt_agent`) / `report` / settle notice — the old M0 smoke test, five observations | ch. 9 | `grade.py m4` |
 | 5 | The supervision loop | persona refinements (timer discipline, log-tail inspection, verdicts) + full-loop rehearsal with forced steer/kill/silent-question | ch. 10 | `grade.py m5` |
@@ -64,9 +64,9 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
   `subagent` row (worker-protocol persona on the row; required explicit choice,
   with fresh installs allowing `runtime/current` from the Settings dropdown);
   validate with `standingKeyFor`; start two sessions (realm check).
-- **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run the goal
-  ceremony (interview → `propose_goal`/`GOAL.md` → later exact human phrase →
-  `confirm_goal`); test amendment and
+- **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run
+  non-blocking goal setup (`get_goal` → inspect durable state and relevant
+  runbooks/scripts → `start_goal`/`GOAL.md` → same-turn execution); test amendment and
   config-refusal discipline; grounding check (a discoverable fact must be looked up,
   not asked or delegated).
 - **M3 — Time** (ch. 8): add the two overlay rows (live reload — watch tmux for
@@ -102,7 +102,7 @@ id-targeted `disabled: true` patch.
 
 ## 5. Risk watchlist (carry into the first real mission)
 
-1. **Prose-enforced protocol** — ceremony gating, changelog completeness, the parallel
+1. **Prose-enforced protocol** — workspace-grounding quality, changelog completeness, the parallel
    limit are persona sentences. Compensating control: the graders + the acceptance
    ledger; fix order is persona wording → machinery. Watch: does the CHANGELOG stay
    truthful when nobody forces it?
@@ -117,6 +117,7 @@ id-targeted `disabled: true` patch.
 
 ## 6. First real mission (unchanged from DESIGN §9)
 
-X.com growth automation, after M7 passes twice: ceremony collects credentials;
+X.com growth automation, after M7 passes twice: goal setup reuses existing scripts
+and requests credentials only when they are genuinely unavailable;
 browser-operator workers install their own tooling (Playwright) at runtime; milestones
 10 → 100 followers. The loop does not change — only the goal and the worker roles do.
