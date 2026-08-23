@@ -58,11 +58,13 @@ persisted Session
 <p>
   The plugin-owned <code>subagent</code> tool takes
   <code>{ description, prompt, model, run_in_background }</code>. <code>model</code> is required and must be
-  one exact <code>provider/model-id</code> from the <strong>user-owned Settings → Plugins allowlist</strong>.
-  Allowed entries render in the tool schema with native input modalities (<code>[text]</code> /
-  <code>[text,image]</code>), so the supervisor can route image work to a vision-capable worker the user
-  approved. Empty settings disable spawning; no route inherits from the parent. The plugin forwards the
-  choice through native <code>SubagentRequest.agentOptions</code>. In background mode it calls
+  one exact choice from the <strong>user-owned Settings → Plugins allowlist</strong>. A fresh install
+  enables <code>runtime/current</code>, which explicitly resolves the provider/model captured for the
+  calling request; fixed choices are exact <code>provider/model-id</code> routes. Fixed entries render
+  with native input modalities (<code>[text]</code> / <code>[text,image]</code>), so the supervisor can
+  route image work to a vision-capable worker the user approved. Empty settings disable spawning; no
+  route is inherited implicitly. The plugin always forwards the resolved route through native
+  <code>SubagentRequest.agentOptions</code>. In background mode it calls
   <code>ctx.subagents.startContinuable()</code>:
 </p>
 <figure class="code">
@@ -196,7 +198,7 @@ prompt: |
   # Constraints
   Read-only outside your outcome directory.
 
-model: "antigravity/gemini-3.7-flash"  # exact route currently allowed in Settings
+model: "runtime/current"  # explicit fresh-install default: same route as this calling turn
 run_in_background: true</code></pre>
 </figure>
 

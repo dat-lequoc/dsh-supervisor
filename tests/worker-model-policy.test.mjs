@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import {
+  currentRuntimeModel,
+  RUNTIME_MODEL_KEY,
   selectWorkerModel,
   workerModelKey,
   workerModelLabel,
@@ -50,6 +52,52 @@ test('an empty settings allowlist disables worker selection', () => {
     () => selectWorkerModel('antigravity/gemini-3.7-flash', []),
     /user allows no worker models/,
   )
+})
+
+test('runtime/current is an explicit allowlist choice resolved from the current request header', () => {
+  const runtime = {
+    provider: 'runtime',
+    id: 'current',
+    modalities: [],
+    runtime: true,
+  }
+  assert.equal(RUNTIME_MODEL_KEY, 'runtime/current')
+  assert.equal(
+    workerModelLabel(runtime),
+    'runtime/current  [current turn: model and capabilities resolved at call time]',
+  )
+  assert.deepEqual(selectWorkerModel(RUNTIME_MODEL_KEY, [runtime]), {
+    key: RUNTIME_MODEL_KEY,
+    runtime: true,
+  })
+  assert.deepEqual(currentRuntimeModel({
+    options: { provider: 'stale', model: 'creation-model' },
+    session: {
+      requestHeader: () => ({
+        config: { provider: 'antigravity', model: 'gemini-3.1-pro' },
+      }),
+    },
+  }), {
+    provider: 'antigravity',
+    model: 'gemini-3.1-pro',
+  })
+})
+
+test('runtime/current fails closed instead of using stale agent options', () => {
+  assert.throws(
+    () => currentRuntimeModel({
+      options: { provider: 'zai123', model: 'glm-5.3' },
+      session: { requestHeader: () => undefined },
+    }),
+    /never falls back to the session-creation model/,
+  )
+})
+
+test('fresh-install settings and catalog include runtime/current by default', async () => {
+  const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(source, /workerModels: \[RUNTIME_MODEL_KEY\]/)
+  assert.match(source, /name: 'Current runtime model'/)
+  assert.match(source, /dynamic: true/)
 })
 
 test('the bundled preset has one guarded spawn frontend and no native fallback row', async () => {

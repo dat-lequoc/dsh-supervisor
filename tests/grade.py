@@ -579,7 +579,7 @@ def _(ws):
             explicit.append(call)
     if explicit:
         return PASS(f"{len(explicit)} explicit-model call(s)")
-    return FAIL("no subagent call carrying the required provider/model route")
+    return FAIL("no subagent call carrying a required settings-approved model choice")
 
 @m4.check("steer: send_message called")
 def _(ws):

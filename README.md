@@ -90,25 +90,33 @@ The supervisor's user-owned knobs live in one settings namespace,
 **`dsh-supervisor`**, editable two ways with the same effect:
 
 - **Web UI:** Settings → Plugins → *Supervisor* — the card has an
-  add-from-catalog dropdown for models (each option tagged with its native
-  input modalities) and number fields for the rest.
+  add-from-catalog dropdown. A synthetic **Current runtime model** choice is
+  enabled by default; fixed models are tagged with native input modalities.
 - **File:** the `dsh-supervisor:` block in `~/.dsh/settings.yaml`.
 
 | Key | Meaning | Applies |
 |---|---|---|
-| `workerModels` | complete allowlist for `subagent.model`; the model is required and must be an exact `provider/model-id`; empty = worker spawning disabled | next tool call and next tool schema (live) |
+| `workerModels` | complete allowlist for required `subagent.model`: `runtime/current` and/or exact `provider/model-id` routes; fresh install = `runtime/current`; empty = spawning disabled | next tool call and next tool schema (live) |
 | `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
 | `wakeMinutes` | how often the supervisor wakes to inspect workers (minutes; recurring schedule, ≥ 5) | next turn (live) |
 | `questionWaitMinutes` | how long it waits for an answer to a question before recording an assumption and continuing | next turn (live) |
 
 Changes are **live** — no restart, no new session: the plugin re-resolves the
 allowlist and remounts `subagent` so its `model` enum and capability labels show
-only the current approved routes. Execution re-reads settings as well, closing
+only the current approved choices. Execution re-reads settings as well, closing
 the race where a model is removed after a request receives its tool schema. A
 `SUPERVISOR META-CONFIG` system-prompt section re-renders the same policy into
 every request alongside the enforced cap and timing defaults.
 
-There is deliberately no preset model list and no parent/default inheritance.
+There is deliberately no preset model list and no implicit parent/default
+inheritance. A fresh installation explicitly allows `runtime/current`: choosing
+it reads the provider/model captured in the calling turn's durable request
+header, resolves its capabilities, and forwards that exact route to the child.
+It never reads the parent's creation-time options, so switching the main model
+before a turn also switches what `runtime/current` means without reviving the
+stale-route bug. Remove this entry in Settings if every child must use a pinned
+route; remove every entry to disable spawning.
+
 The shipped native spawn frontend is absent from the preset because it has no
 `model` argument and can inherit the session's original model even after the
 main agent is routed elsewhere. Every successful tool result names the selected

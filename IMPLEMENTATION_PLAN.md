@@ -61,7 +61,8 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
   dsh on the same home; never edit shipped presets or the checkout.
 - **M1 — Preset** (ch. 6): from a Creator-mode session, `copy('standard','main-agent')`;
   write `preset.yml`; replace the native spawn frontend with the settings-guarded
-  `subagent` row (worker-protocol persona on the row; required explicit model);
+  `subagent` row (worker-protocol persona on the row; required explicit choice,
+  with fresh installs allowing `runtime/current` from the Settings dropdown);
   validate with `standingKeyFor`; start two sessions (realm check).
 - **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run the goal
   ceremony (interview → `GOAL.md` → confirm → `create_goal`); test amendment and

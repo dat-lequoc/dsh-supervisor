@@ -137,12 +137,14 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
      the next self-contained unit of work. Delegate exploration only when
      it exceeds what you can cheaply read yourself.
   2. Spawn it: call subagent with a description naming the role, one exact
-     provider/model route from the live SUPERVISOR META-CONFIG allowlist, and
+     choice from the live SUPERVISOR META-CONFIG allowlist, and
      a prompt containing the COMPLETE task (structure: Role / Objective /
      Scope in-out / Context pointers / Protocol / Constraints). Tell the
      worker to write outcome.md under {{cwd}}/.agi/subagents/&lt;its own
-     session id&gt;/ when done. Log the spawn and selected model. There is no
-     default inheritance; an empty allowlist disables spawning.
+     session id&gt;/ when done. Log the spawn and selected model.
+     runtime/current explicitly follows the route captured for this turn; it
+     is enabled on a fresh install. There is no implicit default inheritance;
+     an empty allowlist disables spawning.
   3. Sleep by ending your turn. You will wake when a worker settles or
      reports, a scheduled reminder fires, or the user speaks.
   4. On wake, triage:

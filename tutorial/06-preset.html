@@ -41,8 +41,9 @@
     model argument. Its child therefore inherits the parent agent's creation-time route, which can be
     stale after live model selection changes. That also bypasses the Supervisor card's allowlist.
     <code>dsh-supervisor/spawn</code> keeps the same native <code>spawn</code> backend and continuable child
-    sessions, while requiring an exact <code>provider/model-id</code> from live settings and forwarding it
-    through native <code>SubagentRequest.agentOptions</code>. It is mounted as <code>subagent</code>, replacing
+    sessions, while requiring an explicit choice from live settings and forwarding the resolved route
+    through native <code>SubagentRequest.agentOptions</code>. Fixed choices are exact provider/model ids;
+    <code>runtime/current</code> safely follows the route captured for the calling turn. It is mounted as <code>subagent</code>, replacing
     — not sitting beside — the native spawn row. The protocol persona remains per row; the task role
     (“browser operator”, “researcher”) travels in the prompt's <code># Role</code> section.
   </p>
@@ -148,8 +149,9 @@ description: >-
       (<code>docs/subsystems/subagent.md</code>, <code>SubagentStartRequest.persona</code>).</li>
 </ul>
 <p>
-  Choose worker models in Settings → Plugins → Supervisor. The list is complete: the generated
-  <code>subagent.model</code> enum contains only those routes, and an empty list disables spawning.
+  Choose worker models in Settings → Plugins → Supervisor. A fresh install enables
+  <strong>Current runtime model</strong> (<code>runtime/current</code>) in that list. The generated
+  <code>subagent.model</code> enum contains only enabled choices, and an empty list disables spawning.
 </p>
 <div class="box warn">
   <span class="box-title">Do not add <code>agi-*</code> service rows here</span>
@@ -217,7 +219,9 @@ give me the full error text.</code></pre>
     The replacement plugin declares its row <code>Config</code> with Schemastery and generates a separate
     model-facing schema with <code>defineTool</code>. This distinction is important: row config chooses the
     backend and persona, while the live Settings allowlist determines the required model enum shown to
-    the agent. Invalid row fields fail during composition; removed models fail again at execution time.
+    the agent. For <code>runtime/current</code>, execution reads the calling request's logged route—not the
+    agent's creation-time defaults. Invalid row fields fail during composition; removed choices fail
+    again at execution time.
   </p>
 </div>
 

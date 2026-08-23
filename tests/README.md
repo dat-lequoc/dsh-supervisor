@@ -14,7 +14,7 @@ python3 /root/dev/tests/grade.py doctor           # what the grader can see
 | Milestone | Chapter | What it grades |
 |---|---|---|
 | m0 | 4  | dsh running, web UI up, patch file parses, workspace exists |
-| m1 | 6  | preset files, persona row, sole plugin-owned `subagent` row (settings-only model policy, worker persona, group placement), sessions mounted |
+| m1 | 6  | preset files, persona row, sole plugin-owned `subagent` row (settings-only model policy with explicit `runtime/current`, worker persona, group placement), sessions mounted |
 | m2 | 7  | `.agi/` skeleton, config keys, all protocol markers in the persona, GOAL.md, `create_goal` called, JSONL validity, amendment discipline |
 | m3 | 8  | schedule rows in the patch **and** in the composed tree, `schedule_create` called, reminder delivered, an `assumed` question |
 | m4 | 9  | child sessions parented to the supervisor; spawn/steer/kill calls; `subagent-settled` and `subagent-report` messages; a child `report`; `outcome.md` |

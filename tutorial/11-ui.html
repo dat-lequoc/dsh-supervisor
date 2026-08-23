@@ -78,15 +78,17 @@
 <h2>The meta-config card (Settings → Plugins → Supervisor)</h2>
 <p>
   Since v0.4.0 the bundle also ships the supervisor's <strong>meta-config</strong> through the native
-  settings domain: namespace <code>dsh-supervisor</code> with <code>workerModels</code> (allowlist, with an
-  add-from-catalog dropdown showing native <code>[text]</code>/<code>[text,image]</code> modality tags),
+  settings domain: namespace <code>dsh-supervisor</code> with <code>workerModels</code> (allowlist, with a
+  default <strong>Current runtime model</strong> dropdown choice plus fixed routes showing native
+  <code>[text]</code>/<code>[text,image]</code> modality tags),
   <code>maxParallelWorkers</code> (hard-enforced by the spawn tool at call time),
   <code>wakeMinutes</code> (how often the supervisor wakes to inspect workers), and
   <code>questionWaitMinutes</code> (how long it waits for an answer before recording an
   assumption and continuing). Edit it in the UI card or as the <code>dsh-supervisor:</code> block in
   <code>~/.dsh/settings.yaml</code> — both are the same revision-fenced document. The model list is the
-  complete policy: the guarded <code>subagent</code> schema exposes only those exact routes, requires one
-  explicitly, and disappears when the list is empty; no preset or parent-model fallback exists.
+  complete policy: the guarded <code>subagent</code> schema exposes only those exact choices, requires one
+  explicitly, and disappears when the list is empty. <code>runtime/current</code> resolves the calling
+  request's captured route, never the stale session-creation route; no implicit fallback exists.
   Everything applies <em>live</em>: the plugin remounts that schema on model-list changes, revalidates
   settings on every call, and the <code>SUPERVISOR META-CONFIG</code> system-prompt section is a text
   <em>function</em>, re-rendered into every request. Two implementation
