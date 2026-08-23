@@ -71,6 +71,14 @@ notice, **verifies the deliverable with its own reads**, logs everything to
 `.agi/CHANGELOG.jsonl`, and continues or finishes. You steer at any time by chatting;
 workers are ordinary sessions in the sidebar — click one to watch it live.
 
+Worker failures are reported only when the native continuable child has actually
+settled. The supervisor preserves that single wake and enriches it from the child's
+durable final `turn/end`, for example `Terminal failure [QUOTA]: …`. Intermediate
+`RATE_LIMIT`, `SERVER`, `TIMEOUT`, `TRANSPORT`, and empty-response hiccups stay silent
+while Harness's retry policy owns them; a successful retry produces an ordinary
+completion notice, while exhausted retries expose only their final cause. The stopped
+child remains resumable through `send_message`.
+
 User-owned knobs in `<workspace>/.agi/config.json` (the agent may propose changes but
 never edits it): `wakeMinutes` (check-in cadence, ≥ 5 — the schedule floor) and
 `questionWaitMinutes` (patience before it records an assumption and moves on).
@@ -141,7 +149,7 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 
 | Path | What |
 |---|---|
-| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed/models/stop routes), and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
+| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed/models/stop routes), final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
 | `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the `spawn_dev_agent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
