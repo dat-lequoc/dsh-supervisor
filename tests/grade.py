@@ -288,8 +288,9 @@ def _find_rows(rows, pred, nested=False):
 
 def _spawn_row():
     rows = _preset_rows()
-    hits = _find_rows(rows, lambda r: isinstance(r.get("config"), dict)
-                      and r["config"].get("toolName") == "spawn_dev_agent")
+    hits = _find_rows(rows, lambda r: r.get("name") == "dsh-supervisor/spawn"
+                      and isinstance(r.get("config"), dict)
+                      and r["config"].get("toolName") == "subagent")
     return hits[0] if hits else (None, False)
 
 @m1.check("preset directory with both files")
@@ -319,22 +320,22 @@ def _(ws):
     text = (hits[0][0].get("config") or {}).get("text") or ""
     return PASS(f"{len(text)} chars") if len(text.strip()) > 20 else FAIL("persona text empty")
 
-@m1.check("spawn_dev_agent row: dsh-tool-subagent, provider spawn, continuable")
+@m1.check("subagent row: plugin-owned, settings-guarded spawn frontend")
 def _(ws):
     row, _n = _spawn_row()
     if row is None:
-        return FAIL("no row with config.toolName spawn_dev_agent (ch6 step 3)")
+        return FAIL("no dsh-supervisor/spawn row with config.toolName subagent")
     cfg = row["config"]
     problems = []
-    if row.get("name") != "@deepseek-ai/dsh-tool-subagent":
+    if row.get("name") != "dsh-supervisor/spawn":
         problems.append(f'name is {row.get("name")}')
     if cfg.get("provider") != "spawn":
         problems.append(f'provider is {cfg.get("provider")}')
-    if cfg.get("backgroundMode") != "continuable":
-        problems.append(f'backgroundMode is {cfg.get("backgroundMode")}')
+    if "models" in cfg:
+        problems.append("preset fallback models are present")
     return PASS() if not problems else FAIL("; ".join(problems))
 
-@m1.check("spawn_dev_agent row carries the worker persona")
+@m1.check("guarded subagent row carries the worker persona")
 def _(ws):
     row, _n = _spawn_row()
     if row is None:
@@ -346,7 +347,7 @@ def _(ws):
     return PASS(f"{len(persona)} chars") if not need else \
         WARN(f"persona lacks protocol words: {need}")
 
-@m1.check("spawn_dev_agent row sits inside a group (delegation), not top-level")
+@m1.check("guarded subagent row sits inside a group (delegation), not top-level")
 def _(ws):
     row, nested = _spawn_row()
     if row is None:
@@ -367,16 +368,23 @@ def _(ws):
     return PASS(f"{n} sessions") if n >= 2 else \
         WARN("only one session so far — start a second to prove no realm collision")
 
-@m1.check("tool list contains spawn_dev_agent (ask the agent; read its answer)")
+@m1.check("tool list contains only the guarded subagent spawn frontend")
 def _(ws):
-    return MANUAL("ch6 step 5 — also verifiable in the session's first tool listing")
+    native = _find_rows(
+        _preset_rows(),
+        lambda r: r.get("name") == "@deepseek-ai/dsh-tool-subagent"
+        and isinstance(r.get("config"), dict)
+        and r["config"].get("provider") == "spawn",
+    )
+    return FAIL("native spawn frontend bypasses workerModels") if native else \
+        MANUAL("confirm subagent.model lists only Settings-approved provider/model routes")
 
 
 # ----------------------------------------------------------------- m2: brain
 
 m2 = milestone("m2", "Brain: persona, .agi contract, goal ceremony (chapter 7)")
 
-PERSONA_MARKERS = ["GROUNDING", "CEREMONY", "QUESTIONS", "spawn_dev_agent",
+PERSONA_MARKERS = ["GROUNDING", "CEREMONY", "QUESTIONS", "subagent",
                    "send_message", "interrupt_agent", "schedule_create",
                    "CHANGELOG.jsonl", "GOAL.md", "progress.jsonl",
                    "questions.jsonl", "NOTES.md"]
@@ -556,10 +564,22 @@ def _(ws):
     return PASS(f"{len(kids)} children, {len(linked)} linked to supervisor sessions") \
         if linked else WARN(f"{len(kids)} children but none parented to a main-agent session")
 
-@m4.check("spawn: spawn_dev_agent called")
+@m4.check("spawn: guarded subagent called with an explicit model")
 def _(ws):
-    n = sum(len(tool_calls(d, "spawn_dev_agent")) for d in supervisor_sessions(ws))
-    return PASS(f"{n} call(s)") if n else FAIL("no spawn_dev_agent call")
+    calls = [call for d in supervisor_sessions(ws) for call in tool_calls(d, "subagent")]
+    explicit = []
+    for call in calls:
+        arguments = call.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = None
+        if isinstance(arguments, dict) and arguments.get("model"):
+            explicit.append(call)
+    if explicit:
+        return PASS(f"{len(explicit)} explicit-model call(s)")
+    return FAIL("no subagent call carrying the required provider/model route")
 
 @m4.check("steer: send_message called")
 def _(ws):

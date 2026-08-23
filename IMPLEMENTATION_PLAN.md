@@ -43,7 +43,7 @@ deployment version changes, re-verify this table first.
 | # | Deliverable | Realized as | Tutorial | Grader |
 |---|---|---|---|---|
 | 0 | Lab sanity (process, UI, patch layer, workspace) | nothing to build | ch. 4 (+1–3, 5 for concepts) | `grade.py m0` |
-| 1 | `main-agent` preset | `agentPresets.copy('standard', …)` + `preset.yml` + one added `spawn_dev_agent` row (N1) in the delegation group | ch. 6 | `grade.py m1` |
+| 1 | `main-agent` preset | `agentPresets.copy('standard', …)` + `preset.yml` + one plugin-owned `subagent` row (N14) in the delegation group | ch. 6 | `grade.py m1` |
 | 2 | Supervisor brain | persona (GROUNDING/STATE/CEREMONY/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + `.agi/` skeleton (`config.json` = `wakeMinutes`, `questionWaitMinutes` only — N3) | ch. 7 | `grade.py m2` |
 | 3 | Time | schedule overlay: two insert rows in `profiles/web/cordis.patch.yml` (N6); patience = one-shot, check-in = recurring (N2) | ch. 8 | `grade.py m3` |
 | 4 | Workers | native loop exercised by hand: spawn / steer (`send_message`) / kill (`interrupt_agent`) / `report` / settle notice — the old M0 smoke test, five observations | ch. 9 | `grade.py m4` |
@@ -60,7 +60,8 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
   profile patch, session storage on disk; create `/root/agi-lab`. Never run a second
   dsh on the same home; never edit shipped presets or the checkout.
 - **M1 — Preset** (ch. 6): from a Creator-mode session, `copy('standard','main-agent')`;
-  write `preset.yml`; add the `spawn_dev_agent` row (worker-protocol persona on the row);
+  write `preset.yml`; replace the native spawn frontend with the settings-guarded
+  `subagent` row (worker-protocol persona on the row; required explicit model);
   validate with `standingKeyFor`; start two sessions (realm check).
 - **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run the goal
   ceremony (interview → `GOAL.md` → confirm → `create_goal`); test amendment and

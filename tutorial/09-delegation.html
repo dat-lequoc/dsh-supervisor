@@ -56,15 +56,14 @@ persisted Session
 
 <h3>1 · Spawn</h3>
 <p>
-  Your <code>spawn_dev_agent</code> tool (and the generic <code>subagent</code>) takes
-  <code>{ description, prompt, run_in_background }</code> — and, since the bundle's generic spawn
-  (<code>dsh-supervisor/spawn</code>, mounted by the preset row), an optional <code>model</code>
-  (<code>provider/model-id</code>) gated by a <strong>user-owned allowlist</strong> (the row's
-  <code>models:</code> config; empty list = no model argument, children only inherit). Allowed entries render
-  in the tool description with their native input modalities (<code>[text]</code> / <code>[text,image]</code>),
-  so the supervisor can route image work to a vision-capable worker the user approved; omitted, the child
-  inherits the supervisor's model (<code>SubagentRequest.agentOptions</code> is a per-request field of
-  <code>ctx.subagents</code>). In background mode the tool calls <code>ctx.subagents.startContinuable()</code>:
+  The plugin-owned <code>subagent</code> tool takes
+  <code>{ description, prompt, model, run_in_background }</code>. <code>model</code> is required and must be
+  one exact <code>provider/model-id</code> from the <strong>user-owned Settings → Plugins allowlist</strong>.
+  Allowed entries render in the tool schema with native input modalities (<code>[text]</code> /
+  <code>[text,image]</code>), so the supervisor can route image work to a vision-capable worker the user
+  approved. Empty settings disable spawning; no route inherits from the parent. The plugin forwards the
+  choice through native <code>SubagentRequest.agentOptions</code>. In background mode it calls
+  <code>ctx.subagents.startContinuable()</code>:
 </p>
 <figure class="code">
 <figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
@@ -169,7 +168,7 @@ interface SubagentSettledMessageSource {
   structure; here is the shape a good spawn looks like, for your test below:
 </p>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>anatomy of a spawn_dev_agent call (what the supervisor should compose)</figcaption>
+<figcaption><span class="badge you">YOURS</span>anatomy of a guarded subagent call (what the supervisor should compose)</figcaption>
 <pre><code>description: "researcher: count zh docs"
 
 prompt: |
@@ -197,6 +196,7 @@ prompt: |
   # Constraints
   Read-only outside your outcome directory.
 
+model: "antigravity/gemini-3.7-flash"  # exact route currently allowed in Settings
 run_in_background: true</code></pre>
 </figure>
 

@@ -65,7 +65,8 @@ Open http://127.0.0.1:3080 → new session → workspace `~/agi-lab` → preset
 
 What you should see, in order: it **grounds** (reads the target itself), writes
 `.agi/GOAL.md` (confirm it, or state the mission imperatively and it proceeds),
-records the goal, spawns a `spawn_dev_agent` worker with a complete structured task,
+records the goal, calls the guarded `subagent` tool with a complete structured task
+and an explicit Settings-approved model route,
 arms a recurring check-in reminder, and sleeps. It wakes on the worker's settle
 notice, **verifies the deliverable with its own reads**, logs everything to
 `.agi/CHANGELOG.jsonl`, and continues or finishes. You steer at any time by chatting;
@@ -95,23 +96,27 @@ The supervisor's user-owned knobs live in one settings namespace,
 
 | Key | Meaning | Applies |
 |---|---|---|
-| `workerModels` | allowlist of `provider/model-id` the supervisor may pass to `spawn_dev_agent`'s `model` argument; empty = workers only inherit | next tool call (live) |
+| `workerModels` | complete allowlist for `subagent.model`; the model is required and must be an exact `provider/model-id`; empty = worker spawning disabled | next tool call and next tool schema (live) |
 | `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
 | `wakeMinutes` | how often the supervisor wakes to inspect workers (minutes; recurring schedule, ≥ 5) | next turn (live) |
 | `questionWaitMinutes` | how long it waits for an answer to a question before recording an assumption and continuing | next turn (live) |
 
-Changes are **live** — no restart, no new session: the spawn tool re-reads the
-values on every call, and a `SUPERVISOR META-CONFIG` system-prompt section
-re-renders them into every request, so the agent always sees the current
-allowlist (with `[text]` / `[text,image]` modality tags), the enforced cap, and
-the timing defaults. The agent never discovers model routes you did not approve
-(models cost money). Vision routing: give a `[text,image]` model (shipped
-example `zai/glm-5v-turbo`) and the supervisor sends image work (screenshots,
-UI checks, figures) there; workers read files with `read_image`, which the
-harness only allows on image-capable routes.
+Changes are **live** — no restart, no new session: the plugin re-resolves the
+allowlist and remounts `subagent` so its `model` enum and capability labels show
+only the current approved routes. Execution re-reads settings as well, closing
+the race where a model is removed after a request receives its tool schema. A
+`SUPERVISOR META-CONFIG` system-prompt section re-renders the same policy into
+every request alongside the enforced cap and timing defaults.
 
-The spawn row's `models:` list in the preset remains as a fallback for
-deployments without the settings namespace; settings win when non-empty.
+There is deliberately no preset model list and no parent/default inheritance.
+The shipped native spawn frontend is absent from the preset because it has no
+`model` argument and can inherit the session's original model even after the
+main agent is routed elsewhere. Every successful tool result names the selected
+route and its native modalities, e.g. `antigravity/gemini-3.7-flash
+[text,image]`, so the hierarchy makes the choice visible. Vision routing: give
+a `[text,image]` model and the supervisor sends image work (screenshots, UI
+checks, figures) there; workers read files with `read_image`, which the harness
+only allows on image-capable routes.
 
 ## The Feed tab
 
@@ -150,7 +155,7 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 | Path | What |
 |---|---|
 | `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed/models/stop routes), final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
-| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the `spawn_dev_agent` worker row |
+| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the sole plugin-owned, settings-guarded `subagent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
 | `tests/grade.py` | Automated milestone graders (m0–m7); `tests/drive.py` drives sessions headlessly over the HTTP RPC |

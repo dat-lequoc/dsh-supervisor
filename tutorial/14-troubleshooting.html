@@ -34,7 +34,7 @@
   <tr><td><code>N row(s) did not activate: waiting for &lt;service&gt;</code></td><td>Consumer row inside the wrong realm, or a host service that genuinely isn’t mounted (e.g. you referenced schedule before chapter 8).</td></tr>
   <tr><td><code>published process-global service(s) […]</code></td><td>You added a provider row loose in the preset. Wrap provider + consumers in one <code>isolate</code> group, or move it host-side. (Chapters 2–3.)</td></tr>
   <tr><td>Second session on the preset fails; first was fine</td><td>Same realm bug — the collision fires on the second mount. Same fix.</td></tr>
-  <tr><td><code>spawn_dev_agent</code> missing from the tool list</td><td>Row landed outside the delegation group’s <code>config:</code> list (indentation), or the file didn’t save. Re-validate.</td></tr>
+  <tr><td><code>subagent</code> missing from the tool list</td><td>The Worker model allowlist is empty (spawning intentionally disabled), the guarded row landed outside the delegation group’s <code>config:</code> list, or the file didn’t save. Add an allowed route, then re-validate.</td></tr>
   <tr><td>Workers behave like generic coders (no report, no outcome.md)</td><td>The row’s <code>persona:</code> didn’t take (indentation), or your spawn prompts omit the protocol — check the tool call’s persona in the child’s session view.</td></tr>
 </table>
 

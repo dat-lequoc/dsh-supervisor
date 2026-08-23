@@ -110,7 +110,7 @@
     <li><strong>Ceremony:</strong> mission — <em>“Produce SUMMARY.md describing the layout of
         /root/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Interview → GOAL.md →
         confirm. <span class="muted">(Deliberately omit where SUMMARY.md should go — seed for step 4.)</span></li>
-    <li><strong>Spawn + timer:</strong> expect a <code>spawn_dev_agent</code> with a complete task prompt
+    <li><strong>Spawn + timer:</strong> expect a guarded <code>subagent</code> call with an explicit allowed model and a complete task prompt
         (Role/Objective/Scope/Context/Protocol/Constraints — read the tool call in the UI and grade
         it), a <code>spawn</code> line in CHANGELOG, and a recurring check-in created.</li>
     <li><strong>Timer wake with a verdict:</strong> when the 5-minute reminder fires while the worker runs,

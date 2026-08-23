@@ -137,7 +137,7 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 </p>
 <table>
   <tr><th>Finding</th><th>Class</th><th>Fix</th></tr>
-  <tr><td>Spawned before the goal was confirmed</td><td>Protocol violation</td><td>Make CEREMONY step 1 of THE LOOP explicitly blocking: “Do not call spawn_dev_agent before GOAL.md is confirmed.”</td></tr>
+  <tr><td>Spawned before the goal was confirmed</td><td>Protocol violation</td><td>Make CEREMONY step 1 of THE LOOP explicitly blocking: “Do not call subagent before GOAL.md is confirmed.”</td></tr>
   <tr><td>Forgot the CHANGELOG line for a steer</td><td>Protocol violation</td><td>Move logging into the verb’s own sentence: “Steer = send_message + one CHANGELOG line, always together.”</td></tr>
   <tr><td>Answered its own question instantly instead of waiting</td><td>Protocol gap</td><td>Add: “A question you can answer by inspection is not a user question — resolve it and move on; only user-owned unknowns enter questions.jsonl.”</td></tr>
   <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>

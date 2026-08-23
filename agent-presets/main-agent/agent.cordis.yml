@@ -72,22 +72,22 @@
          relevant code or docs with your own reads and searches, then decompose
          the next self-contained unit of work. Delegate exploration only when
          it exceeds what you can cheaply read yourself.
-      2. Spawn it: call spawn_dev_agent with a description naming the role, and
+      2. Spawn it: call subagent with a description naming the role, and
          a prompt containing the COMPLETE task (structure: Role / Objective /
          Scope in-out / Context pointers / Protocol / Constraints), with
-         run_in_background: true. Tell the worker to write outcome.md under
-         {{cwd}}/.agi/subagents/<its own session id>/ when done. Log the spawn.
-         Model choice: spawn_dev_agent may take an optional model argument;
-         your SUPERVISOR META-CONFIG section lists the models the USER has
-         allowed, each with its native input modalities, plus the enforced
-         parallel-worker cap — the section is live, so re-check it rather
-         than remembering old values. Default (omit) inherits your model — do
-         so unless a unit needs a capability yours lacks. Pick a [text,image]
-         model ONLY for units that must look at images (screenshots, UI
-         checks, figures) and name the image files the worker should
-         read_image. Never ask for models outside the allowed list; if the
-         mission truly needs one, ask the user to add it in Settings ->
-         Plugins -> dsh-supervisor.
+         run_in_background: true and one REQUIRED exact provider/model route
+         from your SUPERVISOR META-CONFIG section. Tell the worker to write
+         outcome.md under {{cwd}}/.agi/subagents/<its own session id>/ when
+         done. Log the spawn, including the selected model and its advertised
+         input modalities. The meta-config is the complete USER-owned model
+         allowlist and enforced parallel-worker cap; it is live, so re-check
+         it rather than remembering old values. There is no inherited/default
+         model. If the list is empty, worker spawning is disabled; ask the user
+         to add a route in Settings -> Plugins -> dsh-supervisor. Pick a
+         [text,image] model ONLY for units that must look at images
+         (screenshots, UI checks, figures), and name the image files the worker
+         should read_image. Never use another delegation tool to bypass the
+         allowlist.
       3. Sleep by ending your turn. You will wake when a worker settles or
          reports, a scheduled reminder fires, or the user speaks.
       4. On wake, triage:
@@ -295,34 +295,20 @@
     - id: tool-subagent-list-agents
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 
+    # The Dev Agent (DESIGN.md N1, generalized by N10): this plugin owns the
+    # sole model-facing `subagent` row. It keeps the native continuable `spawn`
+    # backend, but requires one explicit provider/model route from the live
+    # Settings -> Plugins allowlist. Its generated schema contains only those
+    # routes and annotates each with native input modalities ([text] /
+    # [text,image]); an empty allowlist removes the tool instead of inheriting
+    # the supervisor's session-creation model. Do not add the shipped
+    # `@deepseek-ai/dsh-tool-subagent` spawn row beside this one: that native
+    # frontend has no model argument and would bypass the settings policy.
     - id: tool-subagent
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: spawn
-        toolName: subagent
-        backgroundMode: continuable
-
-    # The Dev Agent (DESIGN.md N1, generalized by N10): this package's own
-    # model-generic delegation tool. Same continuable `spawn` children and the
-    # same per-row worker persona as the shipped dsh-tool-subagent row it
-    # replaces — plus an optional per-call `model` argument whose catalog
-    # (embedded in the tool description) annotates every model with its native
-    # input modalities ([text] / [text,image]), so the supervisor can pick a
-    # vision-capable worker when a unit must look at images. The per-spawn
-    # role still travels in the task prompt's "# Role" section.
-    - id: tool-spawn-dev
       name: dsh-supervisor/spawn
       config:
         provider: spawn
-        toolName: spawn_dev_agent
-        # USER-owned allowlist: the only models the supervisor may pick for a
-        # worker (each entry provider/model-id; modalities are shown from the
-        # native catalog). Remove the list — or leave it empty — and workers
-        # can ONLY inherit the supervisor's model; the agent never discovers
-        # routes you did not name here. Models cost money: this is your knob.
-        models:
-          - zai/glm-5v-turbo
-          - claude-temp/claude-opus-5
+        toolName: subagent
         persona: |
           You are a Dev Agent: a focused worker under an always-on supervisor.
           Your task arrives as your first message and is complete and

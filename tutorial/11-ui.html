@@ -84,9 +84,12 @@
   <code>wakeMinutes</code> (how often the supervisor wakes to inspect workers), and
   <code>questionWaitMinutes</code> (how long it waits for an answer before recording an
   assumption and continuing). Edit it in the UI card or as the <code>dsh-supervisor:</code> block in
-  <code>~/.dsh/settings.yaml</code> — both are the same revision-fenced document. Everything applies
-  <em>live</em>: the spawn tool re-reads settings on every call, and the <code>SUPERVISOR META-CONFIG</code>
-  system-prompt section is a text <em>function</em>, re-rendered into every request. Two implementation
+  <code>~/.dsh/settings.yaml</code> — both are the same revision-fenced document. The model list is the
+  complete policy: the guarded <code>subagent</code> schema exposes only those exact routes, requires one
+  explicitly, and disappears when the list is empty; no preset or parent-model fallback exists.
+  Everything applies <em>live</em>: the plugin remounts that schema on model-list changes, revalidates
+  settings on every call, and the <code>SUPERVISOR META-CONFIG</code> system-prompt section is a text
+  <em>function</em>, re-rendered into every request. Two implementation
   facts worth stealing: a just-spawned continuable child reports <code>activity: 'inactive'</code> until its
   first turn, so honest cap enforcement needs a starting-ledger on top of the active-count; and the spawn
   tool declares <code>isConcurrencySafe: false</code> so two same-step spawns serialize through the check.

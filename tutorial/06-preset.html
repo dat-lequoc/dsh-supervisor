@@ -28,30 +28,23 @@
 <ol>
   <li>Use a Creator-mode agent to call <code>ctx.agentPresets.copy('standard', 'main-agent', …)</code>.</li>
   <li>Fix the copy’s <code>preset.yml</code> metadata.</li>
-  <li>Add one row: a second delegation tool <code>spawn_dev_agent</code> with a worker persona — reusing
-      the shipped <code>dsh-tool-subagent</code> plugin, zero custom code.</li>
+  <li>Replace the native spawn frontend with one plugin-owned <code>subagent</code> row carrying the
+      worker persona and settings-only model policy.</li>
   <li>Mount-validate with <code>standingKeyFor('main-agent')</code>.</li>
   <li>Start a session on it and inspect its tool list.</li>
 </ol>
 
 <div class="box why">
-  <span class="box-title">Why a second <code>tool-subagent</code> row instead of a custom spawn plugin</span>
+  <span class="box-title">Why the plugin owns the one <code>subagent</code> frontend</span>
   <p>
-    Your design’s amendment A6 planned a custom <code>agi-spawn</code> plugin so each spawn could carry
-    its own persona. Native-first observation: the shipped row config already supports a per-row
-    <code>persona</code>, <code>toolFilter</code>, and <code>agentOptions</code> (provider/model) — verified in
-    source: the <code>Config</code> interface declares <code>persona?: string</code> (“Per-child persona that
-    shadows <code>deployment:persona</code>”, <code>packages/subagent/tool-subagent/src/index.ts</code>,
-    lines 54–57) and passes it into every start request (line 384); the <code>spawn</code> backend
-    declares <code>persona: true</code> among its capabilities
-    (<code>packages/subagent/subagent-spawn-in-process/src/index.ts</code>, line 42).
-    The nuance: the persona is per <em>row</em>, not per <em>call</em> — the model-facing schema is only
-    <code>{description, prompt, run_in_background}</code>. That’s fine: the protocol part (report when
-    blocked, write outcome.md) is invariant and lives on the row; the role part (“you are a browser
-    operator”) varies per spawn and travels in the task prompt’s <code># Role</code> section. Need truly
-    distinct worker <em>types</em> (different tool filters, different models)? Add more rows —
-    <code>spawn_browser_agent</code>, <code>spawn_researcher</code> — before reaching for chapter 13’s custom
-    tool.
+    The shipped frontend is excellent at lifecycle management, but its model-facing schema has no
+    model argument. Its child therefore inherits the parent agent's creation-time route, which can be
+    stale after live model selection changes. That also bypasses the Supervisor card's allowlist.
+    <code>dsh-supervisor/spawn</code> keeps the same native <code>spawn</code> backend and continuable child
+    sessions, while requiring an exact <code>provider/model-id</code> from live settings and forwarding it
+    through native <code>SubagentRequest.agentOptions</code>. It is mounted as <code>subagent</code>, replacing
+    — not sitting beside — the native spawn row. The protocol persona remains per row; the task role
+    (“browser operator”, “researcher”) travels in the prompt's <code># Role</code> section.
   </p>
 </div>
 
@@ -115,17 +108,16 @@ description: >-
 <p>
   Open <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code>. Find the <code>delegation</code>
   group (you read it in chapter 2 — it already carries <code>tool-subagent-control</code>,
-  <code>tool-subagent</code>, and friends). <strong>Inside that same group’s <code>config</code> list</strong>, add
-  one more row:
+  <code>tool-subagent</code>, and friends). Remove the native <code>provider: spawn</code> frontend, then
+  <strong>inside that same group’s <code>config</code> list</strong>, put this replacement row:
 </p>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>add inside the delegation group of main-agent/agent.cordis.yml</figcaption>
-<pre><code>    - id: tool-subagent-dev
-      name: '@deepseek-ai/dsh-tool-subagent'
+<pre><code>    - id: tool-subagent
+      name: dsh-supervisor/spawn
       config:
         provider: spawn
-        toolName: spawn_dev_agent
-        backgroundMode: continuable
+        toolName: subagent
         persona: |
           You are a Dev Agent: a focused worker under an always-on supervisor.
           Your task arrives as your first message and is complete and
@@ -145,9 +137,9 @@ description: >-
   <li><code>provider: spawn</code> — the in-process backend that creates a <em>fresh</em> child (no parent
       history). Registered host-side by <code>subagent-spawn-in-process</code>
       (<code>packages/bundle/base/cordis.patch.yml</code>, lines 295–298).</li>
-  <li><code>toolName: spawn_dev_agent</code> — your supervisor gets a tool by this name, distinct from the
-      generic <code>subagent</code> tool it also keeps.</li>
-  <li><code>backgroundMode: continuable</code> — children are durable sessions you can
+  <li><code>toolName: subagent</code> — the canonical name now refers only to the plugin-owned guarded
+      frontend. Do not keep the shipped spawn row beside it.</li>
+  <li>The plugin always uses continuable mode — children are durable sessions you can
       <code>send_message</code> / <code>interrupt_agent</code>, and whose settling wakes the parent. (Chapter 9
       is entirely about this.)</li>
   <li><code>persona</code> — registered as the <em>child’s</em> persona, shadowing the deployment default for
@@ -156,12 +148,9 @@ description: >-
       (<code>docs/subsystems/subagent.md</code>, <code>SubagentStartRequest.persona</code>).</li>
 </ul>
 <p>
-  Optionally, pin the worker model on the same row (this is where your design’s
-  <code>subagentModel</code> knob lives now — user-owned YAML, not agent-editable):
+  Choose worker models in Settings → Plugins → Supervisor. The list is complete: the generated
+  <code>subagent.model</code> enum contains only those routes, and an empty list disables spawning.
 </p>
-<pre><code>        agentOptions:
-          provider: deepseek-official     # match your deployment's route names
-          model: deepseek-chat            # check Settings → Models in the web UI</code></pre>
 <div class="box warn">
   <span class="box-title">Do not add <code>agi-*</code> service rows here</span>
   <p>
@@ -205,30 +194,30 @@ give me the full error text.</code></pre>
 <div class="box test">
   <span class="box-title">Test it live — milestone 1 acceptance</span>
   <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m1</code> — checks the preset files,
-     the <code>spawn_dev_agent</code> row (fields, worker persona, group placement), and that sessions mounted.</p>
+     the guarded <code>subagent</code> row (fields, worker persona, group placement), absence of the native
+     fallback row, and that sessions mounted.</p>
   <ol>
     <li><code>standingKeyFor('main-agent')</code> returned clean (“mounted OK” or equivalent — no thrown error).</li>
     <li>The preset appears in the picker with your display name and description.</li>
     <li>The new session’s tool list contains, at minimum:
-        <code>spawn_dev_agent</code>, <code>subagent</code>, <code>send_message</code>, <code>interrupt_agent</code>,
+        <code>subagent</code>, <code>send_message</code>, <code>interrupt_agent</code>,
         <code>list_agents</code>, <code>goal</code>-related tools, <code>todo_write</code>, plus the ordinary
         bash/fs suite.</li>
     <li>Negative check: a <em>second</em> session on <code>main-agent</code> starts cleanly too (proves you
         didn’t introduce a realm collision).</li>
   </ol>
-  <p><strong>If <code>spawn_dev_agent</code> is missing:</strong> your row is outside the delegation group’s
-  <code>config:</code> list (indentation!), or the file didn’t save. Re-run step 4 — the validator’s
-  message will name the row.</p>
+  <p><strong>If <code>subagent</code> is missing:</strong> first confirm at least one Worker model is saved in
+  Settings → Plugins → Supervisor. Then check that the replacement row is inside the delegation group's
+  <code>config:</code> list (indentation!) and re-run step 4.</p>
 </div>
 
 <div class="box ts">
   <span class="box-title">TypeScript corner · reading the row’s config schema</span>
   <p>
-    How did we know <code>persona</code> and <code>agentOptions</code> are legal fields? The plugin declares a
-    <code>Config</code> schema, and the generated catalog renders it:
-    <code>/root/deepseek-harness/docs/config-catalog.md</code>, section <code>dsh-tool-subagent</code>. When
-    you wonder “what can this row take?”, the catalog is the answer — and invalid fields fail loud at
-    validation, never silently.
+    The replacement plugin declares its row <code>Config</code> with Schemastery and generates a separate
+    model-facing schema with <code>defineTool</code>. This distinction is important: row config chooses the
+    backend and persona, while the live Settings allowlist determines the required model enum shown to
+    the agent. Invalid row fields fail during composition; removed models fail again at execution time.
   </p>
 </div>
 
