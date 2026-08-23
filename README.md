@@ -63,14 +63,35 @@ Open http://127.0.0.1:3080 → new session → workspace `~/agi-lab` → preset
 > Goal: produce SUMMARY.md describing the layout of `<some docs dir>` — delegate the
 > work, supervise, deliver.
 
-What you should see, in order: it **grounds** (reads the target itself), writes
-`.agi/GOAL.md` (confirm it, or state the mission imperatively and it proceeds),
-records the goal, calls the guarded `subagent` tool with a complete structured task
+What you should see, in order: it **grounds** (reads the target itself), calls
+`propose_goal` to write `.agi/GOAL.md`, and gives you an exact `CONFIRM GOAL …`
+phrase. It cannot proceed from an imperative brief or confirm its own proposal:
+send that phrase in a later turn, after which `confirm_goal` records and arms the
+native goal. It then calls the guarded `subagent` tool with a complete structured task
 and an explicit Settings-approved model route,
 arms a recurring check-in reminder, and sleeps. It wakes on the worker's settle
 notice, **verifies the deliverable with its own reads**, logs everything to
 `.agi/CHANGELOG.jsonl`, and continues or finishes. You steer at any time by chatting;
 workers are ordinary sessions in the sidebar — click one to watch it live.
+
+### Confirmed goal frontend
+
+The preset deliberately disables Harness's native model-facing
+`@deepseek-ai/dsh-tool-goal` row. That frontend permits `create_goal` to infer
+long-running intent from any direct human request, which conflicts with this
+supervisor's required review ceremony. `dsh-supervisor/goal` replaces only that
+frontend; the native `ctx.goals` service, session projection and race-fenced
+goal-round driver remain installed on the host.
+
+The replacement exposes `get_goal`, `propose_goal`, `confirm_goal`, and
+`update_goal`. A proposal captures objective, constraints, milestones,
+out-of-scope and the autonomous round cap in canonical `GOAL.md`, then persists
+its SHA-256 hash per session. Confirmation is accepted only from the root agent,
+in a later turn, when the human message is exactly the proposal-specific phrase
+and the document hash is unchanged. The model cannot pass a replacement
+objective to `confirm_goal`, and `update_goal` deliberately omits `edit`; pause,
+resume, completion, blocking thresholds, native revisions, projections and
+automatic continuation keep their Harness behavior.
 
 Worker failures are reported only when the native continuable child has actually
 settled. The supervisor preserves that single wake and enriches it from the child's
@@ -162,8 +183,8 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 
 | Path | What |
 |---|---|
-| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, the setup plugin (preset install + feed/models/stop routes), final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
-| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, ceremony, loop, questions) + the sole plugin-owned, settings-guarded `subagent` worker row |
+| `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, setup/routes, confirmed native-goal frontend, final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
+| `agent-presets/main-agent/` | The supervisor preset: persona (grounding, confirmed ceremony, loop, questions), plugin-owned goal frontend, and the sole settings-guarded `subagent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
 | `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
 | `tests/grade.py` | Automated milestone graders (m0–m7); `tests/drive.py` drives sessions headlessly over the HTTP RPC |
@@ -228,9 +249,9 @@ its packaged `skills/` as a skill root via `dsh-skill-filesystem`):
 
 ## Safety notes
 
-- The supervisor's protocol is prose-enforced; the graders + changelog are your audit
-  surface. Read `.agi/CHANGELOG.jsonl` — it is the diary of every spawn/steer/kill/
-  assumption.
+- Most supervisor protocol remains prose plus audit, but goal creation and worker-model
+  routing are hard-enforced by plugin-owned frontends. Read `.agi/CHANGELOG.jsonl` —
+  it is the diary of every spawn/steer/kill/assumption.
 - Decide the sandbox/approval posture deliberately before unattended missions with
   real credentials (this lab runs `danger-full-access`).
 - One dsh per `$DSH_HOME`, ever. Never edit shipped presets or the harness checkout.

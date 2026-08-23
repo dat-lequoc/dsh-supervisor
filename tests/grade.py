@@ -429,12 +429,14 @@ def _(ws):
     return PASS(f"{p.stat().st_size} bytes") if p.stat().st_size > 80 else \
         WARN("suspiciously short for objective+constraints+milestones+out-of-scope")
 
-@m2.check("goal recorded via the native goal tool")
+@m2.check("goal recorded through the confirmed supervisor frontend")
 def _(ws):
     for d in supervisor_sessions(ws):
-        if tool_calls(d, "create_goal") or tool_calls(d, "update_goal"):
-            return PASS(f"in {d.name}")
-    return FAIL("no create_goal/update_goal call in any main-agent session")
+        proposed = tool_calls(d, "propose_goal")
+        confirmed = tool_calls(d, "confirm_goal")
+        if proposed and confirmed:
+            return PASS(f"proposal + confirmation in {d.name}")
+    return FAIL("no propose_goal + confirm_goal pair in any main-agent session")
 
 @m2.check("progress.jsonl: valid lines with ts+text")
 def _(ws):

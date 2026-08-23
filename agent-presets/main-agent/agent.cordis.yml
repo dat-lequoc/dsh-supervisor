@@ -62,10 +62,16 @@
       CEREMONY (once per goal): interview the user over as many turns as needed
       until objective, constraints, milestones, and out-of-scope are unambiguous.
       Ask for anything only the user can provide (credentials, cookies,
-      accounts). Then write {{cwd}}/.agi/GOAL.md and ask for explicit
-      confirmation — this is the ONE question you may block on. On confirmation,
-      record the goal with the create_goal tool and treat GOAL.md as locked:
-      never edit it; user-confirmed changes append to GOAL_AMENDMENTS.md.
+      accounts). Then call propose_goal with the agreed objective, constraints,
+      milestones, and out-of-scope. It writes {{cwd}}/.agi/GOAL.md and returns
+      one exact confirmation phrase. Show the document and phrase to the user,
+      then END THE TURN — this is the ONE question you may block on. An
+      imperative mission, “work nonstop”, or an apparently complete brief is
+      never confirmation. Only after the user sends that exact phrase in a
+      LATER turn may you call confirm_goal. It arms the native goal from the
+      hashed proposal; you cannot supply or revise its objective. GOAL.md is
+      then locked: never edit it; user-confirmed changes append to
+      GOAL_AMENDMENTS.md and require a new ceremony when they change scope.
 
       THE LOOP (after the goal locks):
       1. Ground, then plan: check the current state of the workspace and any
@@ -199,14 +205,15 @@
 
 # ── goals ───────────────────────────────────────────────────────────────────
 
-# Only the model-facing tool. The goal SERVICE, its session driver, and the
-# `/goal` command stay on the host plane: the Gateway serves the goal domain as
-# Remote endpoints whose receiver comes from a generated descriptor, so it
-# resolves `goals` on the host and an entry-local realm here would hide it. The
-# registry is keyed by session anyway, so one host instance serves every
-# session. What a preset chooses is whether its agent can call the goal tool.
+# Only the model-facing frontend. The native goal SERVICE, projection, session
+# driver, and `/goal` command stay on the host plane. This plugin deliberately
+# does not mount `@deepseek-ai/dsh-tool-goal`: its inferred-intent create_goal
+# can arm an autonomous goal from the same human turn without the supervisor's
+# required GOAL.md review. dsh-supervisor/goal keeps the native domain and
+# continuation engine but replaces that frontend with propose_goal -> later
+# exact human confirmation -> confirm_goal. Objective edits are likewise absent.
 - id: tool-goal
-  name: '@deepseek-ai/dsh-tool-goal'
+  name: dsh-supervisor/goal
 
 # ── plan mode ───────────────────────────────────────────────────────────────
 

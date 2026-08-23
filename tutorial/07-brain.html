@@ -21,7 +21,7 @@
   <h1>The brain: persona, protocol, and the <code>.agi/</code> contract</h1>
   <p class="lede">A supervisor is mostly prose. This chapter writes the persona that turns your
   preset into the Main Agent — the goal ceremony, the question protocol, the file discipline —
-  and tests the ceremony end to end with the native goal tool.</p>
+  and tests the ceremony end to end with the supervisor's confirmed frontend over the native goal domain.</p>
 </header>
 
 <h2>Where a persona lives and how it works</h2>
@@ -126,10 +126,12 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   CEREMONY (once per goal): interview the user over as many turns as needed
   until objective, constraints, milestones, and out-of-scope are unambiguous.
   Ask for anything only the user can provide (credentials, cookies,
-  accounts). Then write {{cwd}}/.agi/GOAL.md and ask for explicit
-  confirmation — this is the ONE question you may block on. On confirmation,
-  record the goal with the goal tool and treat GOAL.md as locked: never edit
-  it; user-confirmed changes append to GOAL_AMENDMENTS.md.
+  accounts). Then call propose_goal with objective, constraints, milestones,
+  and out-of-scope. It writes {{cwd}}/.agi/GOAL.md and returns an exact
+  confirmation phrase. Show both and end the turn. Even an imperative mission
+  is not confirmation. Only after the user sends that phrase in a later turn
+  may you call confirm_goal. GOAL.md is then locked: never edit it;
+  user-confirmed changes append to GOAL_AMENDMENTS.md.
 
   THE LOOP (after the goal locks):
   1. Ground, then plan: check the current state of the workspace and any
@@ -192,12 +194,13 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
   </p>
 </div>
 
-<h2>The native goal tool (what “record the goal” means)</h2>
+<h2>The confirmed frontend over the native goal domain</h2>
 <p>
-  The persona says “record the goal with the goal tool.” That tool comes from the
-  <code>tool-goal</code> row your preset inherited; the goal <em>service</em> and its session driver live
-  host-side (the base bundle mounts them — <code>packages/bundle/base/cordis.patch.yml</code>, rows
-  <code>goal</code>/<code>tool-goal</code>), and the web UI renders the current goal for the session. That
+  The native goal <em>service</em>, projection, and session driver remain host-side. The preset disables
+  only the inferred-intent <code>@deepseek-ai/dsh-tool-goal</code> frontend and mounts
+  <code>dsh-supervisor/goal</code>. Its <code>propose_goal</code> writes and hashes GOAL.md;
+  <code>confirm_goal</code> requires the exact phrase in a later direct-human turn and then calls the
+  native service. The web UI still renders the current goal for the session. That
   display is your Progress-tab replacement for the goal itself; <code>progress.jsonl</code> covers the
   feed. Zero UI code.
 </p>
@@ -205,19 +208,16 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 <div class="box why">
   <span class="box-title">Field notes from a real run (glm-5.3, 2026-08-21)</span>
   <ul>
-    <li><strong>Goal rounds are free self-continuation.</strong> <code>create_goal</code> doesn’t just
-        record state: the goal domain drives <em>automatic continuation rounds</em> (bounded by
+    <li><strong>Goal rounds are free self-continuation.</strong> <code>confirm_goal</code> arms the
+        native domain, which drives <em>automatic continuation rounds</em> (bounded by
         <code>max_goal_rounds</code>) — the supervisor got six free turns to poll its worker before
         handing off to the settle notice and its check-in reminder. Budget them deliberately.</li>
     <li><strong><code>update_goal(complete)</code> needs a human turn or an active goal round.</strong> A
         settle-notice wake counts as neither; the supervisor learned to finish bookkeeping and close
         the goal on the next human turn. Expect that pattern in transcripts.</li>
-    <li><strong>An imperative mission may skip the interview.</strong> Given “produce X — delegate,
-        supervise, deliver,” the supervisor treated the goal as pre-confirmed (logging
-        <code>goal-recorded … treated as pre-confirmed</code>) and turned the one ambiguity (output
-        location) into a recorded assumption instead of a pending question. Defensible — but if you
-        want a hard gate, add to CEREMONY: <em>“Even for a fully imperative mission, present GOAL.md
-        and wait for one explicit confirmation before the first spawn.”</em></li>
+    <li><strong>An imperative mission cannot skip the interview.</strong> The frontend has no
+        <code>create_goal</code> tool. Same-turn confirmation, an unrelated “yes”, a changed GOAL.md,
+        or a stale proposal id is rejected before the native goal can be armed.</li>
   </ul>
 </div>
 
@@ -229,8 +229,8 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 <div class="box test">
   <span class="box-title">Test it live — milestone 2 acceptance: the goal ceremony</span>
   <p><strong>Auto-grade after the script:</strong> <code>python3 /root/dev/tests/grade.py m2</code> — verifies the
-     <code>.agi/</code> skeleton, every protocol marker in your persona, GOAL.md, the <code>create_goal</code>
-     call, JSONL validity, and the amendment discipline.</p>
+     <code>.agi/</code> skeleton, every protocol marker in your persona, GOAL.md, the
+     <code>propose_goal</code>/<code>confirm_goal</code> pair, JSONL validity, and amendment discipline.</p>
   <p>Drive this script as the user, in a fresh <code>main-agent</code> session:</p>
   <ol>
     <li><strong>Give a vague mission:</strong> <em>“I want a tidy, well-documented summary of the DSH docs
@@ -241,9 +241,9 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
         <strong>Expect:</strong> it runs a quick read itself (an <code>ls</code>/count under
         <code>/root/deepseek-harness/docs</code>) and answers with facts — it must not ask you, guess, or
         spawn a worker for a 30-second question. Discoverable facts are its own job (GROUNDING).</li>
-    <li>Answer tersely; let it iterate. <strong>Expect:</strong> it writes
-        <code>/root/agi-lab/.agi/GOAL.md</code> and asks for explicit confirmation.</li>
-    <li>Say <em>“confirmed.”</em> <strong>Expect:</strong> it records the goal via the goal tool (the goal
+    <li>Answer tersely; let it iterate. <strong>Expect:</strong> <code>propose_goal</code> writes
+        <code>/root/agi-lab/.agi/GOAL.md</code> and returns an exact <code>CONFIRM GOAL …</code> phrase.</li>
+    <li>Send that phrase exactly in a later turn. <strong>Expect:</strong> <code>confirm_goal</code> records the native goal (the goal
         appears in the session’s UI), and appends a line to <code>progress.jsonl</code>.</li>
     <li><strong>Amendment discipline:</strong> say <em>“actually, also cover the cookbook subfolder.”</em>
         <strong>Expect:</strong> an entry in <code>GOAL_AMENDMENTS.md</code> after your confirmation —

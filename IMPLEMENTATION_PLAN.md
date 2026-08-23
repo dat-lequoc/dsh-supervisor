@@ -65,7 +65,8 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
   with fresh installs allowing `runtime/current` from the Settings dropdown);
   validate with `standingKeyFor`; start two sessions (realm check).
 - **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run the goal
-  ceremony (interview → `GOAL.md` → confirm → `create_goal`); test amendment and
+  ceremony (interview → `propose_goal`/`GOAL.md` → later exact human phrase →
+  `confirm_goal`); test amendment and
   config-refusal discipline; grounding check (a discoverable fact must be looked up,
   not asked or delegated).
 - **M3 — Time** (ch. 8): add the two overlay rows (live reload — watch tmux for
