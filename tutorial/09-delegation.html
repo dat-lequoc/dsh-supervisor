@@ -219,9 +219,10 @@ model: "runtime/current"  # explicit fresh-install default: same route as this c
 run_in_background: true</code></pre>
 </figure>
 <p>
-  Reasoning effort is not a tool argument: it is the user's live Supervisor setting. The rendered
-  result should name the resolved route, modalities, and effective effort, for example
-  <code>effort=high (same as current main turn)</code>.
+  Reasoning effort is not a tool argument: it is configured by the user on this route's row in the
+  live Supervisor settings. The rendered result should name the resolved route, modalities, and
+  effective effort, for example <code>effort=high</code>. Even for <code>runtime/current</code>, only
+  the route follows the calling turn; effort never does.
 </p>
 
 <h2>Test it live — the M0 smoke test, by hand</h2>

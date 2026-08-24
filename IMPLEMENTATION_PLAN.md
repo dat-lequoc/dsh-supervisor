@@ -63,8 +63,10 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
   write `preset.yml`; replace the native spawn frontend with the settings-guarded
   `subagent` row (worker-protocol persona on the row; required explicit choice,
   with fresh installs allowing `runtime/current` from the Settings dropdown;
-  expose a catalog-backed worker effort policy defaulting to the current main
-  turn, validate it against the exact route, and persist it in the child header);
+  attach a catalog-backed effort selector to every allowed route, default
+  missing/fresh values to genuine provider default, expose no effort argument
+  to the main agent, validate against the exact route, and persist fixed effort
+  in the child header);
   validate with `standingKeyFor`; start two sessions (realm check).
 - **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run
   non-blocking goal setup (`get_goal` → inspect durable state and relevant

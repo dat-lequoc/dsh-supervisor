@@ -148,14 +148,14 @@ The supervisor's user-owned knobs live in one settings namespace,
 - **Web UI:** Settings → Plugins → *Supervisor* — the card has an
   add-from-catalog dropdown. A synthetic **Current runtime model** choice is
   enabled by default; fixed models are tagged with native input modalities and
-  their model-advertised reasoning efforts. The adjacent effort dropdown is
-  also catalog-backed rather than assuming every provider uses the same names.
+  their model-advertised reasoning efforts. Every allowed model row owns its
+  own effort selector, and the add flow asks for both route and effort.
 - **File:** the `dsh-supervisor:` block in `~/.dsh/settings.yaml`.
 
 | Key | Meaning | Applies |
 |---|---|---|
 | `workerModels` | complete allowlist for required `subagent.model`: `runtime/current` and/or exact `provider/model-id` routes; fresh install = `runtime/current`; empty = spawning disabled | next tool call and next tool schema (live) |
-| `workerEffort` | worker reasoning policy: `runtime/current` copies the calling main turn's explicit effort (fresh-install default); `provider/default` sends no explicit effort; any other value is an opaque catalog-advertised effort id such as `high` | next spawn (live) |
+| `workerEfforts` | map from each allowed route to its user-selected effort; `provider/default` sends no explicit effort (fresh-install and missing-entry default), while fixed ids such as `high` come from the route's native catalog | next spawn and next tool description (live) |
 | `maxParallelWorkers` | max simultaneously open workers, **enforced** at spawn time; 0 = unlimited | next tool call (live) |
 | `wakeMinutes` | how often the supervisor wakes to inspect workers (minutes; recurring schedule, ≥ 5) | next turn (live) |
 | `questionWaitMinutes` | how long it waits for an answer to a question before recording an assumption and continuing | next turn (live) |
@@ -167,12 +167,14 @@ the race where a model is removed after a request receives its tool schema. A
 `SUPERVISOR META-CONFIG` system-prompt section re-renders the same policy into
 every request alongside the enforced cap and timing defaults.
 
-Effort selection is independent of model selection but checked against the
-exact resolved worker route. A fixed or inherited effort that route does not
-advertise is refused before provider I/O; it is never clamped or silently
-downgraded. `runtime/current` copies only an explicit value from the current
-main request header. If that turn has no explicit effort, the worker uses
-`provider/default`. The plugin reserves the continuable child's exact id (or
+Effort is a property of each settings-owned model row, not a tool-call choice.
+The main agent receives a required model enum but no effort parameter. It also
+cannot inherit effort from its own request: a missing legacy map entry becomes
+`provider/default`. A fixed effort that the exact resolved worker route does
+not advertise is refused before provider I/O; it is never clamped or silently
+downgraded. For dynamic `runtime/current`, only the provider/model route follows
+the calling turn; its effort still comes from `workerEfforts.runtime/current`.
+The plugin reserves the continuable child's exact id (or
 captures a foreground child's creation edge) and applies a one-use,
 id-filtered request override before its first model call, making the choice part
 of the child's durable `request/header`. Later warm steps and cold resumes both
@@ -188,12 +190,13 @@ before a turn also switches what `runtime/current` means without reviving the
 stale-route bug. Remove this entry in Settings if every child must use a pinned
 route; remove every entry to disable spawning.
 
-The shipped native spawn frontend is absent from the preset because it has no
-`model` argument and can inherit the session's original model even after the
-main agent is routed elsewhere. Every successful tool result names the selected
+The shipped native spawn and fork frontends are absent from the preset because
+they have no settings-guarded `model` argument and can inherit the main
+session's route/effort. The plugin-owned `subagent` is the sole delegation
+frontend. Every successful tool result names the selected
 route, native modalities, and effective effort policy, e.g.
-`antigravity/gemini-3.7-flash [text,image] effort=high (same as current main
-turn)`, so the hierarchy makes the choice visible. Vision routing: give
+`antigravity/gemini-3.7-flash [text,image] effort=high`, so the hierarchy makes
+the settings-owned choice visible. Vision routing: give
 a `[text,image]` model and the supervisor sends image work (screenshots, UI
 checks, figures) there; workers read files with `read_image`, which the harness
 only allows on image-capable routes.

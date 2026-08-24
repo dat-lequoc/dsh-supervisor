@@ -7,7 +7,6 @@ import {
   resolveWorkerEffort,
   RUNTIME_MODEL_KEY,
   selectWorkerModel,
-  WORKER_EFFORT_CURRENT,
   WORKER_EFFORT_PROVIDER_DEFAULT,
   WORKER_DENIED_TOOLS,
   workerToolFilter,
@@ -104,28 +103,18 @@ test('runtime/current is an explicit allowlist choice resolved from the current 
   })
 })
 
-test('worker effort supports explicit inheritance, provider default, and fixed values', () => {
+test('worker effort supports only settings-owned provider default and fixed values', () => {
   const selected = selectWorkerModel('antigravity/gemini-3.7-flash', allowed)
-  assert.equal(WORKER_EFFORT_CURRENT, 'runtime/current')
   assert.equal(WORKER_EFFORT_PROVIDER_DEFAULT, 'provider/default')
-  assert.deepEqual(resolveWorkerEffort(
-    WORKER_EFFORT_CURRENT,
-    { provider: 'antigravity', model: 'gemini-3.7-flash', reasoningEffort: 'high' },
-    selected,
-  ), {
-    policy: WORKER_EFFORT_CURRENT,
-    label: 'high (same as current main turn)',
-    reasoningEffort: 'high',
-  })
-  assert.deepEqual(resolveWorkerEffort(WORKER_EFFORT_CURRENT, {}, selected), {
-    policy: WORKER_EFFORT_CURRENT,
-    label: 'provider/default (current turn has no explicit effort)',
-  })
-  assert.deepEqual(resolveWorkerEffort(WORKER_EFFORT_PROVIDER_DEFAULT, undefined, selected), {
+  assert.deepEqual(resolveWorkerEffort(undefined, selected), {
     policy: WORKER_EFFORT_PROVIDER_DEFAULT,
     label: 'provider/default',
   })
-  assert.deepEqual(resolveWorkerEffort('medium', undefined, selected), {
+  assert.deepEqual(resolveWorkerEffort(WORKER_EFFORT_PROVIDER_DEFAULT, selected), {
+    policy: WORKER_EFFORT_PROVIDER_DEFAULT,
+    label: 'provider/default',
+  })
+  assert.deepEqual(resolveWorkerEffort('medium', selected), {
     policy: 'medium',
     label: 'medium',
     reasoningEffort: 'medium',
@@ -135,31 +124,23 @@ test('worker effort supports explicit inheritance, provider default, and fixed v
 test('worker effort fails closed when the exact selected model does not advertise it', () => {
   const selected = selectWorkerModel('antigravity/gemini-3.7-flash', allowed)
   assert.throws(
-    () => resolveWorkerEffort('max', undefined, selected),
+    () => resolveWorkerEffort('max', selected),
     /effort "max".*not supported.*supported: low, medium, high/,
-  )
-  assert.throws(
-    () => resolveWorkerEffort(
-      WORKER_EFFORT_CURRENT,
-      { reasoningEffort: 'max' },
-      selected,
-    ),
-    /effort "max".*not supported/,
   )
   const noReasoning = selectWorkerModel('zai/glm-5.3', allowed)
   assert.throws(
-    () => resolveWorkerEffort('high', undefined, noReasoning),
+    () => resolveWorkerEffort('high', noReasoning),
     /advertises no selectable reasoning efforts; use provider\/default/,
   )
 })
 
-test('current runtime route captures only an explicit effort from the current request header', () => {
+test('current runtime route deliberately ignores the main request effort', () => {
   assert.deepEqual(currentRuntimeModel({
     session: { requestHeader: () => ({ config: {
       provider: 'antigravity', model: 'gemini-3.7-flash', reasoningEffort: 'high',
     } }) },
   }), {
-    provider: 'antigravity', model: 'gemini-3.7-flash', reasoningEffort: 'high',
+    provider: 'antigravity', model: 'gemini-3.7-flash',
   })
 })
 
@@ -176,7 +157,8 @@ test('runtime/current fails closed instead of using stale agent options', () => 
 test('fresh-install settings and catalog include runtime/current by default', async () => {
   const source = await readFile(new URL('../lib/index.js', import.meta.url), 'utf8')
   assert.match(source, /workerModels: \[RUNTIME_MODEL_KEY\]/)
-  assert.match(source, /workerEffort: WORKER_EFFORT_CURRENT/)
+  assert.match(source, /workerEfforts: \{ \[RUNTIME_MODEL_KEY\]: WORKER_EFFORT_PROVIDER_DEFAULT \}/)
+  assert.doesNotMatch(source, /workerEffort:/)
   assert.match(source, /name: 'Current runtime model'/)
   assert.match(source, /dynamic: true/)
   assert.match(source, /resolveModelInfo\(model.provider, model.id\)/)
@@ -206,6 +188,16 @@ test('workers cannot open a child-local user question that the supervisor cannot
   assert.match(spawnSource, /status `running` proves only that a driver is open, NOT that useful progress/)
   assert.match(spawnSource, /Never repeat a bare .*still running \/ continue monitoring.* verdict/)
   assert.match(spawnSource, /If the next check-in is still unchanged after that probe, `interrupt_agent`/)
+
+  // The main-facing schema may choose only an allowed route. Effort appears in
+  // the result for observability, but never in the input parameter block.
+  const parameterBlock = spawnSource.slice(
+    spawnSource.indexOf('parameters: {'),
+    spawnSource.indexOf('\n      output: {'),
+  )
+  assert.doesNotMatch(parameterBlock, /\beffort\s*:/)
+  assert.match(spawnSource, /The tool exposes no effort argument/)
+  assert.doesNotMatch(spawnSource, /reasoningEffort === 'string'/)
 })
 
 test('the bundled preset has one guarded spawn frontend and no native fallback row', async () => {
@@ -220,6 +212,11 @@ test('the bundled preset has one guarded spawn frontend and no native fallback r
     preset,
     /name: '@deepseek-ai\/dsh-tool-subagent'\n\s+config:\n\s+provider: spawn\n\s+toolName: subagent/,
   )
+  assert.doesNotMatch(
+    preset,
+    /name: '@deepseek-ai\/dsh-tool-subagent'\n\s+config:\n\s+provider: fork/,
+  )
+  assert.doesNotMatch(preset, /toolName: subagent_fork/)
   assert.doesNotMatch(preset, /toolName: spawn_dev_agent/)
   assert.doesNotMatch(preset, /\n\s+models:\n/)
   assert.match(preset, /You have no direct user-question channel/)

@@ -115,8 +115,10 @@
          done. Log the spawn, including the selected model, its advertised
          input modalities, and the effective effort shown by the tool result.
          The meta-config owns the complete USER-owned model allowlist, worker
-         effort policy, and enforced parallel-worker cap; it is live, so re-check
-         it rather than remembering old values. `runtime/current`, when the
+         effort for each allowed route, and enforced parallel-worker cap; it is
+         live, so re-check it rather than remembering old values. You choose
+         only an allowed model; the tool has no effort argument and never
+         inherits your own effort. `runtime/current`, when the
          user allows it, explicitly follows the model route captured for your
          current turn; it is enabled on a fresh install. There is no implicit
          inherited/default model. If the list is empty, worker spawning is
@@ -354,9 +356,10 @@
     # sole model-facing `subagent` row. It keeps the native continuable `spawn`
     # backend, but requires one explicit choice from the live Settings ->
     # Plugins allowlist. `runtime/current` follows the calling turn's captured
-    # route; fixed routes are provider/model ids. Settings also owns worker
-    # effort: same as the current main turn, provider default, or one exact
-    # catalog-advertised effort. Its generated schema contains only the allowed
+    # route; fixed routes are provider/model ids. Settings also owns one worker
+    # effort per allowed route: provider default or one exact catalog-advertised
+    # effort. The main agent gets no effort input and runtime/current follows
+    # only the model route, never the main turn's effort. The generated schema contains only the allowed
     # model choices and annotates fixed routes with native modalities and
     # reasoning efforts; an empty allowlist removes the tool instead of inheriting
     # the supervisor's session-creation model. Do not add the shipped
@@ -383,13 +386,6 @@
             they join at the next step — comply immediately; do not finish
             the previous plan first.
           - Do not spawn your own subagents unless your task allows it.
-
-    - id: tool-subagent-fork
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: fork
-        toolName: subagent_fork
-        backgroundMode: continuable
 
     # Production dsh does not install these optional providers. An opting-in
     # Profile mounts each provider once on the host plane; copy this preset,

@@ -104,11 +104,14 @@ test('Settings defaults runtime/current into the allowed worker list', async () 
   assert.ok(findElement(tree, node => node.type === 'span'
     && node.children.includes('[current turn — resolved at call time]')))
   assert.ok(findElement(tree, node => node.type === 'select'
-    && node.props.value === 'runtime/current'
+    && node.props.value === 'provider/default'
+    && node.props.title?.includes('runtime/current')
     && findElement(node, child => child.type === 'option' && child.props.value === 'provider/default')))
   assert.ok(findElement(tree, node => node.type === 'option'
     && node.props.value === 'high'
     && node.children.includes('High (high)')))
+  assert.equal(findElement(tree, node => node.type === 'option'
+    && node.children.includes('Same as current main turn (default)')), undefined)
 })
 
 test('removed runtime/current remains available in the add-model dropdown', async () => {
@@ -123,9 +126,11 @@ test('removed runtime/current remains available in the add-model dropdown', asyn
 test('Settings preserves a configured fixed effort and exposes native capability labels', async () => {
   const tree = await renderSettingsCard({
     workerModels: ['antigravity/gemini-3.7-flash'],
-    workerEffort: 'high',
+    workerEfforts: { 'antigravity/gemini-3.7-flash': 'high' },
   })
-  assert.ok(findElement(tree, node => node.type === 'select' && node.props.value === 'high'))
+  assert.ok(findElement(tree, node => node.type === 'select'
+    && node.props.value === 'high'
+    && node.props.title?.includes('antigravity/gemini-3.7-flash')))
   assert.ok(findElement(tree, node => node.type === 'span'
     && node.children.includes('[text,image; effort low/medium/high]')))
 })

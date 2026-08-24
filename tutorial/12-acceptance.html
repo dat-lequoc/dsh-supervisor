@@ -164,7 +164,7 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
   <tr><td>Answered its own question instantly instead of waiting</td><td>Protocol gap</td><td>Add: “A question you can answer by inspection is not a user question — resolve it and move on; only user-owned unknowns enter questions.jsonl.”</td></tr>
   <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>
   <tr><td>Worker waited in <code>ask_user_question</code></td><td>Mechanism regression</td><td>Verify the guarded spawn request carries <code>toolFilter.deny = ['ask_user_question']</code>; the child-scoped <code>report</code> tool must remain.</td></tr>
-  <tr><td>Spawn rejected an effort</td><td>Policy</td><td>The chosen route does not advertise the configured fixed/inherited effort. Select a supported catalog value or <code>provider/default</code>; do not expect clamping.</td></tr>
+  <tr><td>Spawn rejected an effort</td><td>Policy</td><td>The chosen route does not advertise its configured fixed effort. Select a supported catalog value on that model row or <code>provider/default</code>; do not expect clamping.</td></tr>
   <tr><td>Tool errored (schedule missing, spawn rejected)</td><td>Mechanism</td><td>Chapter 6/8 regression: re-validate the preset; check the profile patch still composes (tmux log).</td></tr>
 </table>
 

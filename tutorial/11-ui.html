@@ -98,8 +98,8 @@
   settings domain: namespace <code>dsh-supervisor</code> with <code>workerModels</code> (allowlist, with a
   default <strong>Current runtime model</strong> dropdown choice plus fixed routes showing native
   <code>[text]</code>/<code>[text,image]</code> modality tags and model-advertised reasoning efforts),
-  <code>workerEffort</code> (same as the current main turn, genuine provider default, or one exact
-  catalog-advertised effort id),
+  <code>workerEfforts</code> (one user-owned provider-default or exact catalog-advertised effort
+  per allowed route; never selected or inherited by the main agent),
   <code>maxParallelWorkers</code> (hard-enforced by the spawn tool at call time),
   <code>wakeMinutes</code> (how often the supervisor wakes to inspect workers), and
   <code>questionWaitMinutes</code> (how long it waits for an answer before recording an
