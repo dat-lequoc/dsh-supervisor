@@ -19,30 +19,45 @@
   <p class="kicker">Before Part I — Required setup</p>
   <h1>Start on a clean PC</h1>
   <p class="lede">This is the only supported starting state for the course: no running Harness,
-  no cloned repositories, no <code>main-agent</code> preset, and no supervisor plugin. Finish every
+  no Harness source checkout, no <code>main-agent</code> preset, and no supervisor plugin. Finish every
   check on this page before chapter 1.</p>
 </header>
 
+<h2>How this course app starts</h2>
+<p>
+  You have already cloned <code>dsh-supervisor</code> to reach this page. From that clone, the one local
+  setup command creates an isolated Python environment, installs only the grader's PyYAML and zstd
+  decoder dependencies, chooses an unused localhost port, and serves the tutorial with working grade
+  buttons:
+</p>
+<pre><code>cd "$HOME/src/dsh-supervisor"
+./setup-tutorial.sh</code></pre>
+<p>
+  Keep that terminal open and use the URL it prints. The script deliberately does <strong>not</strong>
+  install dsh, clone DeepSeek Harness, configure a model, or create your lab; those learning steps
+  remain visible below. Press <kbd>Ctrl-C</kbd> when you want to stop the course server.
+</p>
+
 <h2>Supported shell and prerequisites</h2>
 <p>
-  The commands use a POSIX shell on Linux or macOS. On Windows, run them inside WSL. Install
+  The commands use a POSIX shell on Linux or macOS. On Windows, run them inside WSL. The course
+  launcher needs Python 3; on Debian/Ubuntu it automatically installs missing
+  <code>python3-venv</code> support through <code>apt-get</code>. For the Harness itself, install
   <strong>Git</strong>, <strong>Node.js 22.19+ in the Node 22 line or Node 24+</strong>,
-  <strong>Python 3</strong> with PyYAML, and the <strong>zstd</strong> CLI. Node 23 is not a supported
+  and the tools below. Node 23 is not a supported
   Harness runtime. Use an LTS installer from
   <a href="https://nodejs.org/en/download">nodejs.org</a>; on Ubuntu/WSL the remaining packages are:
 </p>
 <pre><code>sudo apt update
-sudo apt install -y git python3 python3-yaml zstd</code></pre>
-<p>On macOS, install Git, Python 3, and zstd with Homebrew or your preferred package manager,
-then install PyYAML into that Python environment. Finally verify the actual executables the course uses:</p>
+sudo apt install -y git python3</code></pre>
+<p>On macOS, install Git and Python 3 with Homebrew or your preferred package manager. The setup script
+already installs the Python grading libraries inside the repository, so it does not modify your system
+Python. Finally verify the Harness prerequisites:</p>
 <pre><code>git --version
 node --version       # v22.19+ in 22.x, or v24+
 npm --version</code></pre>
 <pre><code>python3 --version
-zstd --version
-python3 -c "import yaml; print(yaml.__version__)"</code></pre>
-<p>If the final command fails, install <code>PyYAML</code> with your OS package manager or in the Python
-environment from which you will run <code>tests/grade.py</code>. Do not continue until it imports.</p>
+test -x "$HOME/src/dsh-supervisor/.venv-tutorial/bin/python"</code></pre>
 
 <h2>Install DeepSeek Harness</h2>
 <pre><code>npm install --global @deepseek-ai/dsh
@@ -52,16 +67,15 @@ dsh --version</code></pre>
   code tours; do not modify it.
 </p>
 
-<h2>Clone both repositories at the course paths</h2>
+<h2>Clone DeepSeek Harness beside this course</h2>
 <p>
-  Later commands deliberately use these stable paths. Keeping one convention makes every snippet
-  copyable and avoids machine-specific paths such as <code>/root/dev</code>.
+  The course repository is already at <code>$HOME/src/dsh-supervisor</code>. Clone the Harness source
+  beside it for the cited code tours. The global npm package remains the runtime; do not modify this
+  source checkout.
 </p>
 <pre><code>mkdir -p "$HOME/src"
 git clone https://github.com/deepseek-ai/deepseek-harness.git \
   "$HOME/src/deepseek-harness"
-git clone https://github.com/dat-lequoc/dsh-supervisor.git \
-  "$HOME/src/dsh-supervisor"
 
 test -f "$HOME/src/dsh-supervisor/package.json"
 test -f "$HOME/src/deepseek-harness/docs/architecture.md"</code></pre>
@@ -97,9 +111,9 @@ touch "$HOME/agi-lab/.agi/NOTES.md" \
 <div class="box test">
   <span class="box-title">Setup gate — do not continue until all six pass</span>
   <ol>
-    <li><code>node --version</code> is 22.19+ in the 22.x line, or 24+; Python imports <code>yaml</code>; <code>zstd</code> runs.</li>
+    <li><code>node --version</code> is 22.19+ in the 22.x line, or 24+; the course server's setup check passes below.</li>
     <li><code>dsh --version</code> succeeds.</li>
-    <li>Both repositories exist under <code>$HOME/src/</code>.</li>
+    <li>The course and Harness repositories both exist under <code>$HOME/src/</code>.</li>
     <li><a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a> loads.</li>
     <li>A simple prompt in a standard session receives a model response.</li>
     <li><code>$HOME/agi-lab/.agi/config.json</code> exists and

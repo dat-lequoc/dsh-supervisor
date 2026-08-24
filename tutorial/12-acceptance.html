@@ -147,7 +147,7 @@ python3 $HOME/src/dsh-supervisor/tests/drive.py tail  "$S"</code></pre>
 
 <h2>Grading and the failure ledger</h2>
 <p>
-  <strong>Auto-grade the whole run:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m7</code> — it re-runs the
+  <strong>Auto-grade the whole run:</strong> <code>"$HOME/src/dsh-supervisor/grade-tutorial.sh" m7</code> — it re-runs the
   milestone-2 through 5 graders against <code>$HOME/agi-acceptance</code>, then checks the
   acceptance-specific evidence (the restart resume marker in the supervisor’s log, the
   post-completion amendment). Steps only a human can judge are printed as MANUAL reminders.

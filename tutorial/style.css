@@ -29,6 +29,8 @@
   --badge-cite-fg: #14532d;
   --badge-you-bg: #dbe7f6;
   --badge-you-fg: #1e3a5f;
+  --success: #16805f;
+  --danger: #b4232f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +63,8 @@
     --badge-cite-fg: #8fd4bb;
     --badge-you-bg: #1e2f45;
     --badge-you-fg: #9cc4ef;
+    --success: #6ec9ad;
+    --danger: #f08a8a;
   }
 }
 
@@ -93,6 +97,8 @@ html[data-theme="dark"] {
   --badge-cite-fg: #8fd4bb;
   --badge-you-bg: #1e2f45;
   --badge-you-fg: #9cc4ef;
+  --success: #6ec9ad;
+  --danger: #f08a8a;
 }
 
 * { box-sizing: border-box; }
@@ -146,6 +152,60 @@ button.theme-toggle:hover {
 }
 button.theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.course-progress {
+  max-width: 47rem;
+  margin: .9rem auto 0;
+  padding: 0 1.25rem;
+}
+.course-progress-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .35rem;
+  font-size: .78rem;
+}
+.course-progress-copy span {
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.course-progress-copy strong { color: var(--fg); text-align: right; }
+.course-progress-track {
+  height: .45rem;
+  overflow: hidden;
+  background: var(--code-border);
+  border-radius: 999px;
+}
+.course-progress-track span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width .25s ease;
+}
+.course-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: .3rem;
+  margin-top: .45rem;
+}
+.course-progress-steps a {
+  height: .42rem;
+  background: var(--code-border);
+  border-radius: 999px;
+}
+.course-progress-steps a.visited { background: color-mix(in srgb, var(--accent) 45%, var(--code-border)); }
+.course-progress-steps a.passed { background: var(--success); }
+.course-progress-steps a.current {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.course-progress-steps a:focus-visible {
+  outline: 2px solid var(--link);
   outline-offset: 2px;
 }
 header.chapter { margin: 2.2rem 0 2.4rem; }
@@ -251,6 +311,68 @@ kbd {
 .box.warn { border-color: var(--box-warn); background: var(--box-warn-bg); }
 .box.warn .box-title { color: var(--box-warn); }
 
+.web-grader {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--code-border);
+}
+.web-grader-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: .7rem;
+}
+.web-grader-heading span { font-weight: 750; }
+.web-grader-heading small { color: var(--muted); text-align: right; }
+.web-grader-workspace {
+  display: block;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 650;
+}
+.web-grader-workspace input {
+  display: block;
+  width: 100%;
+  margin-top: .25rem;
+  padding: .55rem .7rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  font: .85rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.web-grader-actions {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .75rem;
+}
+.grade-button {
+  padding: .55rem .9rem;
+  color: white;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.grade-button:hover { filter: brightness(1.08); }
+.grade-button:disabled { cursor: wait; opacity: .65; }
+.grade-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.grade-status { font-size: .85rem; font-weight: 700; }
+.grade-status.running { color: var(--muted); }
+.grade-status.passed { color: var(--success); }
+.grade-status.failed { color: var(--danger); }
+.grade-output {
+  max-height: 28rem;
+  margin-bottom: 0;
+  white-space: pre-wrap;
+  font-size: .76rem;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
@@ -322,3 +444,11 @@ details summary { cursor: pointer; font-weight: 600; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 img { max-width: 100%; }
+
+@media (max-width: 560px) {
+  nav.top { gap: .55rem; padding-inline: .8rem; }
+  nav.top .crumb { display: none; }
+  .course-progress-copy, .web-grader-heading { align-items: flex-start; flex-direction: column; gap: .15rem; }
+  .course-progress-copy strong, .web-grader-heading small { text-align: left; }
+  .course-progress-steps { gap: .18rem; }
+}

@@ -27,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -86,11 +87,23 @@ def session_lines(session_dir: Path) -> list[str]:
     log = session_dir / "session.jsonl.zstd"
     lines: list[str] = []
     if log.exists():
-        # check=False: a live session's stream can end mid-frame; partial
-        # stdout is still valid JSONL for every complete line.
-        proc = subprocess.run(["zstd", "-dc", str(log)],
-                              capture_output=True, check=False)
-        lines = proc.stdout.decode("utf-8", errors="replace").splitlines()
+        # A live stream can end mid-frame; retain every complete decoded line.
+        if shutil.which("zstd"):
+            proc = subprocess.run(["zstd", "-dc", str(log)],
+                                  capture_output=True, check=False)
+            raw = proc.stdout
+        else:
+            import zstandard
+            chunks = []
+            try:
+                with log.open("rb") as source, \
+                        zstandard.ZstdDecompressor().stream_reader(source) as reader:
+                    while chunk := reader.read(131_072):
+                        chunks.append(chunk)
+            except zstandard.ZstdError:
+                pass
+            raw = b"".join(chunks)
+        lines = raw.decode("utf-8", errors="replace").splitlines()
     _log_cache[session_dir] = lines
     return lines
 
@@ -775,8 +788,15 @@ def doctor():
     print(f"  DSH_HOME:        {DSH_HOME}  {'(ok)' if DSH_HOME.is_dir() else '(MISSING)'}")
     print(f"  preset dir:      {PRESET_DIR}  {'(ok)' if PRESET_DIR.is_dir() else '(absent)'}")
     print(f"  profile patch:   {PATCH_FILE}  {'(ok)' if PATCH_FILE.exists() else '(MISSING)'}")
-    z = subprocess.run(["which", "zstd"], capture_output=True, text=True).stdout.strip()
-    print(f"  zstd:            {z or 'MISSING (required)'}")
+    z = shutil.which("zstd")
+    if z:
+        print(f"  zstd decoder:    {z}")
+    else:
+        try:
+            import zstandard  # noqa: F401
+            print("  zstd decoder:    Python zstandard (ok)")
+        except ImportError:
+            print("  zstd decoder:    MISSING (run ./setup-tutorial.sh)")
     try:
         import yaml  # noqa: F401
         print("  PyYAML:          ok")

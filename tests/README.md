@@ -2,12 +2,15 @@
 
 One command per milestone, run after finishing each chapter's "Test it live" box:
 
+The recommended interface is the <strong>Run grader</strong> button embedded in each tutorial milestone
+when the course is started with <code>./setup-tutorial.sh</code>. These commands are the equivalent CLI:
+
 ```sh
-python3 "$HOME/src/dsh-supervisor/tests/grade.py" m1
-python3 "$HOME/src/dsh-supervisor/tests/grade.py" m4 --ws "$HOME/agi-lab"
-python3 "$HOME/src/dsh-supervisor/tests/grade.py" all
-python3 "$HOME/src/dsh-supervisor/tests/grade.py" m7
-python3 "$HOME/src/dsh-supervisor/tests/grade.py" doctor
+"$HOME/src/dsh-supervisor/grade-tutorial.sh" m1
+"$HOME/src/dsh-supervisor/grade-tutorial.sh" m4 --ws "$HOME/agi-lab"
+"$HOME/src/dsh-supervisor/grade-tutorial.sh" all
+"$HOME/src/dsh-supervisor/grade-tutorial.sh" m7
+"$HOME/src/dsh-supervisor/grade-tutorial.sh" doctor
 ```
 
 | Milestone | Chapter | What it grades |
@@ -40,7 +43,8 @@ MANUAL lines are reminders of things only a human can judge (visuals, transcript
 quality); they never affect the score. A milestone "passes" at ≥ 90%, which is also the
 process exit code (0/1), so you can chain it in scripts.
 
-Requirements: Python 3 with PyYAML and the `zstd` CLI (installed on the tutorial setup page).
+Requirements: Python 3 with PyYAML and either the <code>zstd</code> CLI or Python
+<code>zstandard</code>. <code>./setup-tutorial.sh</code> installs both Python packages in an isolated venv.
 
 ## Honest limitations
 

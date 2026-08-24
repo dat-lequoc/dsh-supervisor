@@ -12,17 +12,30 @@ steering, a mid-turn kill + tighter respawn, the silent-question → recorded-as
 flow, deliverable verification (it caught its own buggy link-checker and re-ran it),
 and full process-restart resume. Grader scores: m0–m5 and m7 at 100%.
 
-## Install (any PC with dsh)
+## Run the local course on a new PC
 
-Prerequisites: Node.js 22.19+ in the 22.x line, or Node.js 24+, and dsh
-(`npm i -g @deepseek-ai/dsh`), with a model
-configured (web UI → Settings → Models; tested with Z.AI `glm-5.3`). For the graders:
-Python 3 + PyYAML and `zstd`.
+Install Git and Python 3, clone this repository, then run its course launcher:
 
 ```sh
-# from a fresh user account (or install a published/GitHub package directly):
 mkdir -p "$HOME/src"
 git clone https://github.com/dat-lequoc/dsh-supervisor.git "$HOME/src/dsh-supervisor"
+cd "$HOME/src/dsh-supervisor"
+./setup-tutorial.sh
+```
+
+The launcher creates `.venv-tutorial`, installs the grader-only Python dependencies, selects
+an unused `127.0.0.1` port, and prints the tutorial URL. Its local server powers the grade
+buttons embedded in each milestone. It intentionally does not install dsh, clone DeepSeek Harness,
+configure a model, or create workspaces; the setup chapter teaches those steps explicitly.
+
+## Install the supervisor (chapter 6)
+
+Prerequisites: Node.js 22.19+ in the 22.x line, or Node.js 24+, and dsh
+(`npm i -g @deepseek-ai/dsh`), with a model configured (web UI → Settings → Models;
+tested with Z.AI `glm-5.3`).
+
+```sh
+# When chapter 6 tells you to install the already-cloned package:
 cd "$HOME/src/dsh-supervisor"
 dsh plugin --profile web add "file:$PWD"
 
@@ -251,9 +264,9 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 ## Grade it
 
 ```sh
-python3 tests/grade.py all --ws ~/agi-lab    # m0–m6 report with bar chart
-python3 tests/grade.py m7 --ws ~/agi-lab     # acceptance + restart evidence
-python3 tests/grade.py doctor                # what the grader can see
+./grade-tutorial.sh all --ws ~/agi-lab    # m0–m6 report with bar chart
+./grade-tutorial.sh m7 --ws ~/agi-acceptance  # acceptance + restart evidence
+./grade-tutorial.sh doctor                # what the grader can see
 ```
 
 Graders read only durable artifacts (preset files, patch/bundle rows, `.agi/`, session
