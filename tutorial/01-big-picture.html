@@ -100,15 +100,15 @@ loop:
   <tr><td><strong>spawn</strong></td><td><code>subagent</code> (continuable, background)</td>
       <td>Creates a durable child session with its own agent, delivers the task as its first message, returns a child id immediately.</td></tr>
   <tr><td><strong>steer</strong></td><td><code>send_message</code></td>
-      <td>Queues a correction as the child’s <em>next turn</em>. A running child finishes its current turn first; an idle child wakes; a cold child is resumed from disk.</td></tr>
+      <td>Joins a running child at its <em>next model step</em>; an idle child starts a later turn and a cold child resumes from disk. Interrupt first only when the current turn must stop.</td></tr>
   <tr><td><strong>kill</strong></td><td><code>interrupt_agent</code> + silence</td>
       <td>Stops the current turn. An un-messaged child does no further work and burns zero tokens. There is no “destroy” — the session remains on disk, inspectable.</td></tr>
 </table>
 <p>
   And one verb belongs to the <em>worker</em>: <strong>report</strong>. A continuable child automatically gets a
   <code>report</code> tool; calling it delivers a message to the parent and (by default) <em>wakes the parent’s
-  turn</em>. That is the blocked-question channel: the worker asks, stops, and the answer arrives as its
-  next turn via <code>send_message</code>. Context preserved, no restart, no forking.
+  turn</em>. That is the blocked-question channel: the worker asks, stops, and the answer continues the
+  same child via <code>send_message</code>. Context preserved, no restart, no forking.
 </p>
 
 <h2>Files are the truth</h2>
@@ -135,18 +135,18 @@ loop:
 </p>
 
 <h2>What is native, what is authored, what is optional</h2>
-<p>This is the complete build inventory. Notice how short the middle column is:</p>
+<p>This is the current build inventory. The custom pieces are narrow policy surfaces over native domains:</p>
 <table>
-  <tr><th>Native — already running</th><th>Authored by you — no code</th><th>Optional custom code (ch. 13)</th></tr>
+  <tr><th>Native lifecycle</th><th>Bundled supervisor policy</th><th>Optional extensions (ch. 13)</th></tr>
   <tr>
     <td>
       <ul>
         <li>continuable <code>subagent</code> spawn</li>
-        <li><code>send_message</code> / <code>interrupt_agent</code> / <code>list_agents</code></li>
+        <li>follow-up / interrupt / <code>list_agents</code> services</li>
         <li>child <code>report</code> tool + parent wakeup</li>
         <li>settle notices</li>
-        <li><code>goal</code> tool + UI display</li>
-        <li>schedule tools (needs 2 config rows)</li>
+        <li>goal service, continuation driver, projection + UI</li>
+        <li>schedule tools (one config row)</li>
         <li>web GUI: session list, child session views</li>
         <li>session logs as JSONL on disk</li>
         <li>todo, plan mode, ask-user, compaction</li>
@@ -154,19 +154,20 @@ loop:
     </td>
     <td>
       <ul>
-        <li>the <code>main-agent</code> preset (YAML, copied from <code>standard</code>)</li>
-        <li>a plugin-owned <code>subagent</code> row with a worker persona and settings-only model route (YAML)</li>
-        <li>the supervisor persona (prose)</li>
+        <li>the <code>main-agent</code> preset and supervisor persona</li>
+        <li>guarded goal, spawn, and control frontends</li>
+        <li>live worker model, reasoning-effort, concurrency, and timing settings</li>
+        <li>worker question restriction and terminal-failure enrichment</li>
+        <li>Feed tab + Full stop</li>
         <li>the <code>.agi/</code> file convention (prose + one mkdir)</li>
-        <li>two schedule rows in your profile patch (YAML)</li>
+        <li>one schedule row in the bundle patch</li>
       </ul>
     </td>
     <td>
       <ul>
         <li><code>wait_for_agents</code> blocking tool</li>
         <li>automatic per-child <code>trace.log</code></li>
-        <li>HTTP route serving <code>.agi/</code> as JSON</li>
-        <li>custom UI tabs</li>
+        <li>additional domain-specific UI views</li>
       </ul>
     </td>
   </tr>
@@ -176,8 +177,8 @@ loop:
   <span class="box-title">Where this diverges from IMPLEMENTATION_PLAN.md</span>
   <p>
     The plan (M2) builds four host plugins before anything works. We invert that: chapters 6–12
-    produce a complete working supervisor with <em>zero</em> host plugins, and chapter 13 shows how to add
-    them if you find you want them. Two plan details are also superseded by the design’s own later
+    first established the native-first core; the installable bundle now adds only the policy and UI
+    plugins listed above. Chapter 13 shows how to add further capabilities if you need them. Two plan details are also superseded by the design’s own later
     amendments: workers get their task <em>in the spawn prompt</em> (no <code>brief.md</code> files — simplification
     S4), and there is no mandated wake ritual (S1) — native session persistence is the memory.
   </p>
@@ -191,7 +192,8 @@ loop:
 <ul>
   <li>The <strong>host composition</strong> — one instance per process: registries, persistence, the sandbox,
       the model route, the subagent machinery. You touch it only through your profile’s patch file,
-      and in this whole course you add exactly two rows to it (the schedule overlay).</li>
+      and in the manual-install path you add one schedule-service row to it. The bundle path composes
+      that row plus its own setup plugin automatically.</li>
   <li>An <strong>agent preset</strong> — what one session contributes: its tools, its persona, its prompt
       sections. This is where almost everything you author lives.</li>
 </ul>

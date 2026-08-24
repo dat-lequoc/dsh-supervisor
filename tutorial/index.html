@@ -19,7 +19,7 @@
   <p class="kicker">A hands-on course, from the ground up</p>
   <h1>Build an Always-On Supervisor Agent on DeepSeek Harness</h1>
   <p class="lede">
-    Fifteen chapters that take you from “what is a plugin?” to a running 24/7 Main Agent
+    Fourteen chapters that take you from “what is a plugin?” to a running 24/7 Main Agent
     that spawns, watches, steers, and kills worker subagents — built almost entirely out of
     parts the harness already ships. Every chapter ends with something you can test live
     in your own running <code>dsh web</code>.
@@ -31,28 +31,31 @@
   Your design documents (<code>/root/dev/DESIGN.md</code> and <code>/root/dev/IMPLEMENTATION_PLAN.md</code>)
   describe a supervisor built from a preset plus five custom plugins. This course deliberately takes a
   <strong>native-first</strong> path instead: we reuse and configure what the harness already ships, and we
-  write custom code only where nothing native exists. That gets you to a working system dramatically
+  keep the native lifecycle machinery and add narrow policy frontends only where the shipped tools do
+  not enforce the supervisor's contract. That gets you to a working system dramatically
   faster, and — more importantly for learning — every native piece you configure is a piece you
   end up understanding.
 </p>
 <p>Concretely, here is what the design wanted and what the harness already provides:</p>
 <table>
   <tr><th>Supervisor need</th><th>Native mechanism (already running in your dsh)</th><th>Custom code?</th></tr>
-  <tr><td>Spawn a background worker</td><td>The <code>subagent</code> tool (continuable in-process child)</td><td>No</td></tr>
-  <tr><td>Steer a running worker</td><td><code>send_message</code> — queues a correction as the child’s next turn</td><td>No</td></tr>
+  <tr><td>Spawn a background worker</td><td>Native continuable child lifecycle, behind a settings-guarded <code>subagent</code> frontend</td><td>Thin policy frontend</td></tr>
+  <tr><td>Steer a running worker</td><td>Native follow-up/cold-resume lifecycle; the supervisor's <code>send_message</code> joins a running turn at its next model step</td><td>Thin control frontend</td></tr>
   <tr><td>Kill a worker</td><td><code>interrupt_agent</code> + never message it again (zero further token burn)</td><td>No</td></tr>
-  <tr><td>Worker blocked on a question</td><td>The child’s native <code>report</code> tool — wakes the parent</td><td>No</td></tr>
-  <tr><td>Wake when a worker finishes</td><td>Native settle notice, delivered to the parent unconditionally</td><td>No</td></tr>
-  <tr><td>Wake on a timer (patience / periodic check)</td><td><code>schedule_create</code> (an opt-in overlay: two config rows)</td><td>No — config only</td></tr>
-  <tr><td>Track the locked goal</td><td>The <code>goal</code> tool + the web UI’s goal display</td><td>No</td></tr>
+  <tr><td>Worker blocked on a question</td><td>The child’s native <code>report</code> tool wakes the parent; spawn policy removes dead-end <code>ask_user_question</code></td><td>Tool restriction</td></tr>
+  <tr><td>Wake when a worker finishes</td><td>Native settle notice, enriched with the final durable failure cause when retries exhaust</td><td>Small diagnostic hook</td></tr>
+  <tr><td>Wake on a timer (patience / periodic check)</td><td><code>schedule_create</code> (one schedule-service config row)</td><td>No — config only</td></tr>
+  <tr><td>Track the locked goal</td><td>Native goal domain and UI, behind a grounded, non-blocking frontend</td><td>Thin policy frontend</td></tr>
   <tr><td>Inspect what a worker did</td><td>Children are ordinary sessions in the web GUI, and ordinary JSONL files on disk</td><td>No</td></tr>
   <tr><td>The supervisor personality & protocol</td><td>An <em>agent preset</em> — a YAML file you author</td><td>No code — YAML + prose</td></tr>
   <tr><td>Durable state (goal, notes, questions, changelog)</td><td>Plain files in <code>.agi/</code>, written with the shell/fs tools every agent has</td><td>No — convention only</td></tr>
-  <tr><td>Extra UI, trace files, a no-argument wait tool</td><td>—</td><td>Optional, chapter 13</td></tr>
+  <tr><td>Glanceable run UI and real stop</td><td>Native view slot/projections plus the bundled Feed route and Full stop maintenance action</td><td>Bundled client + host route</td></tr>
+  <tr><td>Extra trace files or a no-argument wait tool</td><td>—</td><td>Optional, chapter 13</td></tr>
 </table>
 <p>
-  So the “build” is: <strong>one preset you author + two schedule rows + a persona that encodes the
-  protocol + a file convention</strong>. Everything else is understanding — which is the point.
+  So the “build” is: <strong>one preset + one schedule-service row + a persona and file convention,
+  packaged with narrow goal/spawn/control/diagnostic/UI policy plugins</strong>. The worker lifecycle,
+  retries, durable sessions, goals, schedules, and wake delivery remain native.
 </p>
 
 <div class="box why">
@@ -115,13 +118,13 @@
   <li><a href="07-brain.html">Milestone 2 — The brain: persona, protocol, and the <code>.agi/</code> state contract</a><span class="tag">testable</span>
       <span class="desc">Write the supervisor persona and test workspace-grounded, non-blocking goal setup over the native goal service.</span></li>
   <li><a href="08-schedule.html">Milestone 3 — Time: the schedule overlay</a><span class="tag">testable</span>
-      <span class="desc">Two rows in your profile patch give every session <code>schedule_create</code>. Patience timers and periodic wake-ups with zero code.</span></li>
+      <span class="desc">One schedule-service row gives sessions <code>schedule_create</code>. Patience timers and periodic wake-ups with zero custom timer code.</span></li>
   <li><a href="09-delegation.html">Milestone 4 — Workers: spawn, steer, kill, report</a><span class="tag">testable</span>
-      <span class="desc">The native continuable subagent loop, exercised by hand: all five observations of the design’s M0 smoke test, plus a guarded <code>subagent</code> frontend with its own persona and explicit Settings-approved route.</span></li>
+      <span class="desc">The native continuable subagent loop plus guarded model/effort routing, parent-only questions, next-step steering, and terminal-failure diagnostics.</span></li>
   <li><a href="10-loop.html">Milestone 5 — The supervision loop</a><span class="tag">testable</span>
       <span class="desc">Wire settle notices + schedule wakes + session-log inspection into the full sleep/wake/triage cycle. Forced steer, forced kill, forced unanswered question.</span></li>
   <li><a href="11-ui.html">Milestone 6 — UI, the minimal way</a><span class="tag">testable</span>
-      <span class="desc">What the shipped web UI already shows you (sessions, children, goal, plan). Then one optional 40-line dynamic client plugin that adds a status pill — reusing shipped slots.</span></li>
+      <span class="desc">The bundled Feed tab, live Supervisor settings card, and the durable Full stop control that removes recurring wake-ups.</span></li>
   <li><a href="12-acceptance.html">Milestone 7 — Acceptance run</a><span class="tag">testable</span>
       <span class="desc">A scripted end-to-end goal with every behavior forced once, plus the restart-resilience check. Your definition of done.</span></li>
 </ol>
@@ -138,8 +141,9 @@
 <p>
   <code>IMPLEMENTATION_PLAN.md</code> predates two things: the design’s own simplifications (S1–S4) and
   your decision to build native-first. Where this course and the plan disagree — custom
-  <code>agi-spawn</code> vs. the shipped subagent tool, <code>brief.md</code> files vs. prompt-carried tasks,
-  custom tabs vs. the shipped session views — <strong>this course reflects the current decision</strong> and
+  a fully custom <code>agi-spawn</code> lifecycle vs. the guarded frontend over native continuable workers,
+  <code>brief.md</code> files vs. prompt-carried tasks, and bespoke run-list/trace tabs vs. the bundled Feed
+  plus shipped session views — <strong>this course reflects the current decision</strong> and
   says so in place. The plan remains useful as the reference for the “maximal” custom build,
   which chapter 13 revisits.
 </p>

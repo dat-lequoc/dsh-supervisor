@@ -112,7 +112,7 @@ per session, mounted under that session's scope and unwound with it.</code></pre
   <tr><td>Supervisor persona, protocol text</td><td>Preset</td><td>One session’s identity.</td></tr>
   <tr><td><code>subagent</code>, <code>send_message</code>, <code>goal</code>, <code>todo</code> tools</td><td>Preset rows (consuming host services)</td><td>The preset decides <em>whether this agent can call them</em>; the machinery behind them is host-side.</td></tr>
   <tr><td>The subagent registry + spawn/fork backends</td><td>Host (already there)</td><td>Cross-session singleton; the browser queries it too.</td></tr>
-  <tr><td>Schedule service + tools (chapter 8)</td><td>Host — two rows in your profile patch</td><td>Not mounted by default; the shipped overlay adds it process-wide.</td></tr>
+  <tr><td>Schedule service + tools (chapter 8)</td><td>Host — one row in the bundle/profile patch</td><td>Not mounted by default; the supervisor bundle adds it process-wide without the optional time-context row.</td></tr>
   <tr><td>Any future custom plugin (chapter 13)</td><td>Host, via profile dependency</td><td>Must observe every session / register process-wide capability.</td></tr>
 </table>
 
@@ -210,10 +210,11 @@ tools/execute       → around-dispatch wrappers (timeouts live here)
 tools/post-execute  → inspect or replace the result
 tools/result        → the immutable outcome</code></pre>
 <p>
-  You will not touch this pipeline in the native-first build, but you should know it exists for two
-  reasons: it is where chapter 13’s optional tool-delay plugin would sit
-  (<code>docs/tool-execution-pipeline.md</code>), and it explains the sandbox/approval prompts you see in
-  the web UI — those are shipped <code>pre-execute</code> policies asking you to decide.
+  The current bundle uses this policy seat narrowly: its goal frontend guards operational tools until
+  a long-running continuation has checked native goal state, inspected relevant workspace material,
+  and armed <code>start_goal</code>. Chapter 13’s optional tool-delay plugin is another example
+  (<code>docs/tool-execution-pipeline.md</code>). The same pipeline also explains sandbox/approval prompts
+  in the web UI — shipped <code>pre-execute</code> policies asking you to decide.
 </p>
 
 <h2>Where new behavior goes — the official map</h2>

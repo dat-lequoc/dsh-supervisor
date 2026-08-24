@@ -32,9 +32,9 @@
 </p>
 <table>
   <tr><th>Wake source</th><th>Native mechanism</th><th>Persona’s triage rule</th></tr>
-  <tr><td>Worker finished</td><td>Settle notice (unconditional, carries final content)</td><td>Read <code>outcome.md</code> + final message, <strong>verify the deliverable with its own eyes</strong> → progress line → next unit or done.</td></tr>
-  <tr><td>Worker blocked</td><td><code>report</code> (wakeup delivery)</td><td>Answer via <code>send_message</code>, or ask the user and keep unblocked work moving.</td></tr>
-  <tr><td>Timer</td><td>Recurring reminder (<code>every_seconds = wakeMinutes*60</code>)</td><td>Inspect the worker; on-track → continue; drifting → steer; poisoned → kill + respawn.</td></tr>
+  <tr><td>Worker finished</td><td>Settle notice (unconditional; terminal failure enriched after retries)</td><td>Read <code>outcome.md</code> + final message, <strong>verify the deliverable with its own eyes</strong> → progress line → next unit, recovery, or done.</td></tr>
+  <tr><td>Worker blocked</td><td><code>report</code> (wakeup delivery; <code>ask_user_question</code> denied in workers)</td><td>Answer via <code>send_message</code>, or ask the user and keep unblocked work moving.</td></tr>
+  <tr><td>Timer</td><td>Recurring reminder (<code>every_seconds = wakeMinutes*60</code>)</td><td>Compare concrete evidence with the prior checkpoint; first unchanged check → probe, second unchanged check → interrupt and recover/respawn.</td></tr>
   <tr><td>You spoke</td><td>Ordinary user message</td><td>Overrides everything; it is steering.</td></tr>
 </table>
 
@@ -44,7 +44,8 @@
   that. Two native surfaces:
 </p>
 <ol>
-  <li><strong><code>list_agents</code></strong> — is it still running at all?</li>
+  <li><strong><code>list_agents</code></strong> — is its driver still open? This is liveness only, never
+      evidence of useful progress.</li>
   <li><strong>The child’s session log on disk.</strong> The child id names its directory under
       <code>/root/.dsh/sessions/--root-agi-lab--/</code>, and the JSONL is grep-friendly. The last few
       <code>tool/call</code> lines answer “what is it doing right now” in one command.</li>
@@ -55,12 +56,16 @@
 </p>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>persona addition (inside the scheduled check-in branch)</figcaption>
-<pre><code>  To inspect a worker cheaply: list_agents for liveness; then tail its
+<pre><code>  To inspect a worker cheaply: list_agents for driver liveness; then tail its
   recent activity from its session log —
     grep '"type":"tool/call"' /root/.dsh/sessions/&lt;workspace-dir&gt;/&lt;child-id&gt;*/\
 *.jsonl | tail -20
-  Judge drift by comparing what you see against the task's Scope. Log a
-  one-line verdict to NOTES.md each check-in.</code></pre>
+  Compare a concrete report, artifact/log change, or completed step with the
+  previous NOTES.md checkpoint. Fresh evidence: record it. No fresh evidence:
+  send_message asking for a concise progress/blocker report and record the
+  probe. Still unchanged at the next check: interrupt_agent, log the stall,
+  then recover or respawn with a revised task. Never repeat a bare “still
+  running / continue monitoring” verdict.</code></pre>
 </figure>
 <p class="muted">
   (Exact filenames under a session directory vary; let the agent discover them with <code>ls</code> once
@@ -75,9 +80,12 @@
 </p>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>persona addition (LOOP)</figcaption>
-<pre><code>  Timer discipline: after a spawn, if no recurring check-in reminder exists,
-  create one for wakeMinutes (from config.json). When no workers remain
-  running, schedule_delete it. Never keep more than one check-in reminder.</code></pre>
+<pre><code>  Timer discipline: after a spawn, and after a user message while workers
+  remain, ensure exactly one recurring check-in exists for wakeMinutes. A user
+  message after Full stop explicitly resumes and re-arms the loop; worker
+  settle/report wakes alone do not. Delete the check-in when no workers remain
+  only after another durable continuation path exists or the goal is complete,
+  paused, or blocked.</code></pre>
 </figure>
 <p>Re-validate the preset after both edits (<code>standingKeyFor</code>, chapter 6 step 4) and start a fresh session for testing.</p>
 
@@ -115,14 +123,15 @@
         (Role/Objective/Scope/Context/Protocol/Constraints — read the tool call in the UI and grade
         it), a <code>spawn</code> line in CHANGELOG, and a recurring check-in created.</li>
     <li><strong>Timer wake with a verdict:</strong> when the 5-minute reminder fires while the worker runs,
-        expect: <code>list_agents</code> + a log tail + a one-line verdict in NOTES.md, then quiet
-        continuation — no pointless steering of an on-track worker.</li>
+        expect: <code>list_agents</code> + a log/artifact comparison + a concrete checkpoint in NOTES.md.
+        If unchanged, expect an immediate status probe; if still unchanged at the following check,
+        expect interrupt and recovery rather than another monitoring-only verdict.</li>
     <li><strong>Unanswered question:</strong> at some point the output-location ambiguity should surface
         (the worker reports, or the supervisor asks you). Stay silent. Expect: pending →
         patience reminder → <code>assumed</code> with a sensible recorded assumption → work continues.</li>
     <li><strong>Forced steer:</strong> while a worker runs, say — <em>“have it also count the .zh.md
-        files.”</em> Expect <code>send_message</code> (not a kill, not a respawn) + a <code>steer</code>
-        CHANGELOG line.</li>
+        files.”</em> Expect <code>send_message</code> to join at the worker's next model step (not a kill,
+        not a respawn) + a <code>steer</code> CHANGELOG line.</li>
     <li><strong>Forced kill:</strong> say — <em>“that worker’s approach is wrong; kill it and respawn with a
         tighter scope.”</em> Expect <code>interrupt_agent</code> + <code>kill</code> line + a fresh spawn whose
         task visibly narrowed.</li>
@@ -151,15 +160,15 @@
     Every failure you see in the rehearsal is one of three kinds: a <em>protocol gap</em> (the persona
     never said what to do — add a rule), a <em>protocol violation</em> (it said so, but the model skipped
     it — strengthen the wording, move it earlier, or make it a numbered step), or a
-    <em>mechanism failure</em> (a tool errored — that’s a chapter 6/8 regression, re-validate). Fix in
-    that order. The machinery beneath you is shipped and tested; in the native-first build,
-    debugging is prompt engineering with a paper trail.
+    <em>mechanism failure</em> (a tool errored — re-validate the preset/bundle and run its tests). Fix in
+    that order. Native lifecycle machinery and the bundle's narrow policy frontends are separately
+    testable; behavioral debugging still has a durable paper trail.
   </p>
 </div>
 
 <h2>What exists now</h2>
 <p>
-  A working supervisor. Left: seeing it well (chapter 11’s UI habits + optional pill), and the formal
+  A working supervisor. Left: seeing and stopping it well (chapter 11’s Feed + Full stop), and the formal
   acceptance + restart drill (chapter 12).
 </p>
 

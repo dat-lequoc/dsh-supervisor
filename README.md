@@ -3,7 +3,7 @@
 A 24/7 **Main Agent** that records a reviewable goal, then loops unattended: spawn a dev
 subagent → sleep → wake on settle / report / timer / your message → inspect → steer,
 kill, or continue. Built **native-first** on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-(dsh): the core is one agent preset, a persona, and two schedule rows — zero custom
+(dsh): the core is one agent preset, a persona, and one schedule-service row — zero custom
 loop machinery. This repo **is an installable dsh plugin bundle**: one command puts the
 whole setup on any machine running dsh.
 
@@ -237,7 +237,7 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 | `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, setup/routes, non-blocking native-goal frontend, final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
 | `agent-presets/main-agent/` | The supervisor preset: persona (grounding, non-blocking goal setup, loop, questions), plugin-owned goal frontend, and the sole settings-guarded `subagent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
-| `tutorial/` | A 15-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
+| `tutorial/` | A 14-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
 | `tests/grade.py` | Automated milestone graders (m0–m7); `tests/drive.py` drives sessions headlessly over the HTTP RPC |
 | `scripts/install-manual.sh` | Non-bundle fallback installer |
 | `DESIGN.md` / `IMPLEMENTATION_PLAN.md` | The design record (Q1–Q23, A1–A6, S1–S4, N1–N7, G1) and the v2 plan |

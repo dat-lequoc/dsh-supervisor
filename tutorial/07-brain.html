@@ -142,7 +142,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
      a prompt containing the COMPLETE task (structure: Role / Objective /
      Scope in-out / Context pointers / Protocol / Constraints). Tell the
      worker to write outcome.md under {{cwd}}/.agi/subagents/&lt;its own
-     session id&gt;/ when done. Log the spawn and selected model.
+     session id&gt;/ when done. Log the spawn, selected model, advertised
+     modalities, and effective effort shown by the tool result. Worker effort
+     is user-owned live meta-config: same as this turn, provider default, or
+     one exact catalog-advertised id; never invent a different value.
      runtime/current explicitly follows the route captured for this turn; it
      is enabled on a fresh install. There is no implicit default inheritance;
      an empty allowlist disables spawning.
@@ -155,12 +158,14 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
        or finish.
      - Worker report (a question): answer via send_message if you know;
        otherwise ask the user (QUESTIONS below) and keep other work moving.
-     - Scheduled check-in: inspect the worker (list_agents; read its session
-       or artifacts). On track → let it run and re-arm the check-in.
-       Drifting → steer: send_message with a concrete correction (it becomes
-       the worker's next turn; interrupt_agent first ONLY if the current
-       turn must stop now). Context poisoned → interrupt_agent, log the
-       kill, spawn fresh with a revised task.
+     - Scheduled check-in: list_agents proves driver liveness only. Compare a
+       concrete report, artifact/log change, or completed step with the prior
+       NOTES.md checkpoint. Fresh evidence → record it. No fresh evidence →
+       immediately send_message for a concise progress/blocker report. Still
+       unchanged at the next check after that probe → interrupt_agent, record
+       the stall, then recover or respawn. Drifting with evidence → steer with
+       a concrete send_message; it joins a running worker at the next model
+       step. Interrupt first ONLY if the current turn must stop now.
      - User message: it overrides everything; it is steering.
   5. Repeat until the goal's milestones are met; keep the goal tool current.
 

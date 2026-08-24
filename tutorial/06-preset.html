@@ -28,8 +28,8 @@
 <ol>
   <li>Use a Creator-mode agent to call <code>ctx.agentPresets.copy('standard', 'main-agent', …)</code>.</li>
   <li>Fix the copy’s <code>preset.yml</code> metadata.</li>
-  <li>Replace the native spawn frontend with one plugin-owned <code>subagent</code> row carrying the
-      worker persona and settings-only model policy.</li>
+  <li>Replace the native spawn and control frontends with plugin-owned rows carrying the worker
+      persona, settings-only model/effort policy, and next-step steering.</li>
   <li>Mount-validate with <code>standingKeyFor('main-agent')</code>.</li>
   <li>Start a session on it and inspect its tool list.</li>
 </ol>
@@ -43,7 +43,8 @@
     <code>dsh-supervisor/spawn</code> keeps the same native <code>spawn</code> backend and continuable child
     sessions, while requiring an explicit choice from live settings and forwarding the resolved route
     through native <code>SubagentRequest.agentOptions</code>. Fixed choices are exact provider/model ids;
-    <code>runtime/current</code> safely follows the route captured for the calling turn. It is mounted as <code>subagent</code>, replacing
+    <code>runtime/current</code> safely follows the route captured for the calling turn. Worker reasoning
+    effort is a separate live policy and is validated against that exact route. The plugin is mounted as <code>subagent</code>, replacing
     — not sitting beside — the native spawn row. The protocol persona remains per row; the task role
     (“browser operator”, “researcher”) travels in the prompt's <code># Role</code> section.
   </p>
@@ -109,12 +110,16 @@ description: >-
 <p>
   Open <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code>. Find the <code>delegation</code>
   group (you read it in chapter 2 — it already carries <code>tool-subagent-control</code>,
-  <code>tool-subagent</code>, and friends). Remove the native <code>provider: spawn</code> frontend, then
-  <strong>inside that same group’s <code>config</code> list</strong>, put this replacement row:
+  <code>tool-subagent</code>, and friends). Remove the shipped control row and native
+  <code>provider: spawn</code> frontend, then
+  <strong>inside that same group’s <code>config</code> list</strong>, replace the control row and spawn row:
 </p>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>add inside the delegation group of main-agent/agent.cordis.yml</figcaption>
-<pre><code>    - id: tool-subagent
+<pre><code>    - id: tool-subagent-control
+      name: dsh-supervisor/control
+
+    - id: tool-subagent
       name: dsh-supervisor/spawn
       config:
         provider: spawn
@@ -123,14 +128,15 @@ description: >-
           You are a Dev Agent: a focused worker under an always-on supervisor.
           Your task arrives as your first message and is complete and
           self-contained; stay strictly inside its scope.
-          - Blocked on information only the supervisor or user has: call the
-            report tool with the precise question, then stop working until the
-            answer arrives as your next turn.
+          - You have no direct user-question channel. The report tool is your
+            ONLY channel to the supervisor. If blocked on information only the
+            supervisor or user has, call report with the precise question,
+            then stop until the answer arrives.
           - On completion: write outcome.md (what you did, what you verified,
             what remains) at the path your task names, then report a
             one-paragraph summary.
-          - Supervisor messages arriving mid-task are course corrections:
-            comply immediately.
+          - Supervisor messages arriving mid-task join at the next model step:
+            comply immediately; do not finish the previous plan first.
           - Do not spawn your own subagents unless your task allows it.</code></pre>
 </figure>
 <p>Why each field, with the receipts:</p>
@@ -140,6 +146,8 @@ description: >-
       (<code>packages/bundle/base/cordis.patch.yml</code>, lines 295–298).</li>
   <li><code>toolName: subagent</code> — the canonical name now refers only to the plugin-owned guarded
       frontend. Do not keep the shipped spawn row beside it.</li>
+  <li><code>dsh-supervisor/control</code> keeps native authority, idle wake, and cold resume, but routes a
+      message to a running direct child through <code>Agent.steer()</code> so it joins at the next step.</li>
   <li>The plugin always uses continuable mode — children are durable sessions you can
       <code>send_message</code> / <code>interrupt_agent</code>, and whose settling wakes the parent. (Chapter 9
       is entirely about this.)</li>
@@ -149,9 +157,12 @@ description: >-
       (<code>docs/subsystems/subagent.md</code>, <code>SubagentStartRequest.persona</code>).</li>
 </ul>
 <p>
-  Choose worker models in Settings → Plugins → Supervisor. A fresh install enables
-  <strong>Current runtime model</strong> (<code>runtime/current</code>) in that list. The generated
-  <code>subagent.model</code> enum contains only enabled choices, and an empty list disables spawning.
+  Choose worker models and worker effort in Settings → Plugins → Supervisor. A fresh install enables
+  <strong>Current runtime model</strong> and <strong>same effort as current main turn</strong>
+  (<code>runtime/current</code>) for each policy. Fixed routes advertise their native modalities and
+  selectable efforts. <code>provider/default</code> omits an explicit worker effort. Any fixed or inherited
+  effort unsupported by the selected route is rejected before provider I/O. The generated
+  <code>subagent.model</code> enum contains only enabled choices, and an empty model list disables spawning.
 </p>
 <div class="box warn">
   <span class="box-title">Do not add <code>agi-*</code> service rows here</span>
@@ -218,10 +229,12 @@ give me the full error text.</code></pre>
   <p>
     The replacement plugin declares its row <code>Config</code> with Schemastery and generates a separate
     model-facing schema with <code>defineTool</code>. This distinction is important: row config chooses the
-    backend and persona, while the live Settings allowlist determines the required model enum shown to
-    the agent. For <code>runtime/current</code>, execution reads the calling request's logged route—not the
-    agent's creation-time defaults. Invalid row fields fail during composition; removed choices fail
-    again at execution time.
+    backend and persona, while live Settings determine the required model enum and reasoning-effort
+    policy. For <code>runtime/current</code>, execution reads the calling request's logged route and explicit
+    effort—not the agent's creation-time defaults. The plugin reserves the continuable child's id and
+    applies the effort to its first request; the resulting <code>request/header</code> makes warm and cold
+    continuation durable. Invalid row fields fail during composition; removed or incompatible choices
+    fail again at execution time.
   </p>
 </div>
 

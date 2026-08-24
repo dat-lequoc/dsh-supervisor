@@ -21,8 +21,8 @@
   <h1>UI, the minimal way</h1>
   <p class="lede">Your design sketched two custom tabs. This chapter shows how much of that the
   shipped web UI already gives you for free, then walks the one piece the bundle now ships — the
-  <strong>Feed</strong> view tab, a durable client plugin in the native view ring — and keeps the
-  dynamic status pill as an optional exercise in dynamic plugins.</p>
+  <strong>Feed</strong> view tab, live Supervisor settings, and the durable <strong>Full stop</strong>
+  control that ends recurring wake-ups.</p>
 </header>
 
 <h2>What the shipped UI already is</h2>
@@ -39,7 +39,7 @@
 <p>
   So the honest gap is small: a glanceable “what is the supervisor doing right now” view and
   file-feed convenience. The packaged bundle now closes both with a shipped <strong>Feed tab</strong>
-  (below); the terminal habit and the dynamic pill remain as alternatives and exercises.
+  (below); the terminal habit remains a useful independent view of the same durable state.
 </p>
 
 <h2>The shipped Feed tab (what the bundle installs)</h2>
@@ -72,15 +72,34 @@
   <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m6</code> — verifies the installed
      client half, the <code>__DSH_BOOT__</code> row, the served bundle, and the feed route. Then the visual:
      open your <code>main-agent</code> session → click <strong>Feed</strong> in the view ring → goal card,
-     workers, progress timeline all present and refreshing (~5 s).</p>
+     workers, progress timeline all present and refreshing (~5 s), with <strong>■ Full stop</strong>
+     available while the supervisor is active.</p>
 </div>
+
+<h2>Full stop: stopping the loop, not just one turn</h2>
+<p>
+  The native stop square aborts only the current turn. A recurring worker check-in is durable, so it
+  can wake the supervisor again. The Feed header's <strong>■ Full stop</strong> control targets the root
+  <code>main-agent</code> even when opened from a worker Feed. If the root is cold, the browser resumes
+  the existing session without starting a turn, then <code>POST /supervisor/stop?session=…</code> aborts
+  active work, waits for idle, enters the agent's exclusive maintenance window, deletes every active
+  schedule reminder, and flushes persistence again. Running workers are deliberately not killed:
+  each may deliver one final settle report, but no reminder recurs.
+</p>
+<p>
+  <code>GET /supervisor/stop?session=…</code> folds live or cold durable state, so the stopped status
+  survives refresh. A later direct user prompt is an explicit resume; if workers remain, the persona
+  re-arms one recurring check-in and the Full stop button becomes available again.
+</p>
 
 <h2>The meta-config card (Settings → Plugins → Supervisor)</h2>
 <p>
   Since v0.4.0 the bundle also ships the supervisor's <strong>meta-config</strong> through the native
   settings domain: namespace <code>dsh-supervisor</code> with <code>workerModels</code> (allowlist, with a
   default <strong>Current runtime model</strong> dropdown choice plus fixed routes showing native
-  <code>[text]</code>/<code>[text,image]</code> modality tags),
+  <code>[text]</code>/<code>[text,image]</code> modality tags and model-advertised reasoning efforts),
+  <code>workerEffort</code> (same as the current main turn, genuine provider default, or one exact
+  catalog-advertised effort id),
   <code>maxParallelWorkers</code> (hard-enforced by the spawn tool at call time),
   <code>wakeMinutes</code> (how often the supervisor wakes to inspect workers), and
   <code>questionWaitMinutes</code> (how long it waits for an answer before recording an
@@ -89,6 +108,7 @@
   complete policy: the guarded <code>subagent</code> schema exposes only those exact choices, requires one
   explicitly, and disappears when the list is empty. <code>runtime/current</code> resolves the calling
   request's captured route, never the stale session-creation route; no implicit fallback exists.
+  Effort is validated against the exact resolved route and never clamped or silently downgraded.
   Everything applies <em>live</em>: the plugin remounts that schema on model-list changes, revalidates
   settings on every call, and the <code>SUPERVISOR META-CONFIG</code> system-prompt section is a text
   <em>function</em>, re-rendered into every request. Two implementation
@@ -112,7 +132,13 @@ watch -n 5 'ls -lt /root/.dsh/sessions/--root-agi-lab--/ | head'</code></pre>
   miss the custom tabs.
 </p>
 
-<h2>Optional: a status pill in the shipped overlay slot</h2>
+<details>
+<summary>Historical exercise: the retired dynamic status pill</summary>
+<h2>Optional client-plugin exercise: a status pill</h2>
+<p class="muted">
+  This exercise is retained to teach dynamic host/client plugins, but it is not part of the current
+  product or milestone acceptance. The durable Feed superseded the process-memory pill in v0.2.0.
+</p>
 <p>
   Now the flourish — and the excuse to learn client-side dynamic plugins. The web UI’s layout
   declares a frame-wide floating layer exactly for additions like this:
@@ -217,10 +243,8 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
 </ul>
 
 <div class="box test">
-  <span class="box-title">Test it live — milestone 6 acceptance</span>
-  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m6</code> — confirms the define/run
-     lifecycle and the inspect-before-code discipline from the Creator session's log; the visuals
-     (steps 2–5) stay yours to judge.</p>
+  <span class="box-title">Optional exercise check</span>
+  <p>This is not checked by <code>m6</code>; the current grader checks the packaged Feed and routes.</p>
   <ol>
     <li><code>cordis_run</code> returns <code>awaiting-approval</code> for the client half → an approval card
         appears in the Creator session → approve it once.</li>
@@ -238,16 +262,14 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
 </div>
 
 <div class="box why">
-  <span class="box-title">Why we didn’t build the two tabs</span>
+  <span class="box-title">What this historical exercise teaches</span>
   <p>
-    A <code>conversation.view</code> tab (the shipped slot for whole view tabs — same catalog,
-    key <code>conversation.view</code>) rendering <code>.agi/</code> is entirely buildable with exactly the
-    techniques above, and nothing about it is beyond you now. It just isn’t <em>earning its keep</em>:
-    the session list already is the run list, the session view already is the trace, and your files
-    already have a feed. Native-first means spending UI effort only where the shipped surface is
-    actually silent — which turned out to be one pill.
+    The host/client bridge, additive slot registration, teardown-safe timers, and plain-JSON boundary
+    are the same concepts used by packaged client plugins. The production supervisor uses them in the
+    durable <code>conversation.view</code> Feed instead of requiring a dynamic plugin after every restart.
   </p>
 </div>
+</details>
 
 <nav class="pager">
   <a class="prev" href="10-loop.html">← Chapter 10 — Milestone 5: the loop</a>

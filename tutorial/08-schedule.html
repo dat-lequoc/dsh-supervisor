@@ -20,8 +20,8 @@
   <p class="kicker">Part II — Build · Milestone 3</p>
   <h1>Time: the schedule overlay</h1>
   <p class="lede">A supervisor needs two timers: a patience window on questions and a periodic
-  check-in on running workers. The harness ships both as an opt-in overlay — two rows in your
-  profile patch, hot-applied with no restart. This is your first host-plane change.</p>
+  check-in on running workers. One <code>dsh-schedule</code> service row supplies both timer forms;
+  the bundle installs it automatically, or the manual path hot-applies it in your profile patch.</p>
 </header>
 
 <h2>What the schedule subsystem is</h2>

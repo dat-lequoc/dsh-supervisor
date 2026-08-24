@@ -268,7 +268,9 @@ export function apply(ctx: Context): void {
 
 <h3>4 · <code>agi-state-route</code> — <code>.agi/</code> over HTTP</h3>
 <p>
-  For dashboards beyond the pill. The route contract is exactly chapter’s 3 web server:
+  The supervisor bundle already ships the bounded <code>GET /supervisor/feed?ws=…</code> route used by
+  Feed. Treat this sketch as a lesson for a <em>different</em> mission-specific schema, not something the
+  current supervisor still needs. The route contract is exactly chapter 3’s web server:
   <code>ctx.webServer.register({ kind, path, handler })</code> returns a disposer; duplicates throw
   (<code>docs/subsystems/web-server.md</code>). Path-validate the <code>ws</code> query parameter — the
   server is unauthenticated localhost.
@@ -351,14 +353,14 @@ tmux attach -t dsh    # Ctrl-C → dsh web → detach</code></pre>
   a subpath install form: <code>github:owner/repo#ref&amp;path:/.dsh-plugin</code>.
 </p>
 
-<h2>Promoting the pill (last word on UI)</h2>
+<h2>Packaged client plugins (last word on UI)</h2>
 <p>
-  A <em>client</em> half in a packaged plugin is where real frontend tooling begins (the shipped UI
-  plugins are dual-face packages with a bundling pipeline — see any
-  <code>packages/client/ui-*</code>). Before walking that road, remember the pill costs two tool calls to
-  re-run after a restart — and a Creator-mode agent can be <em>asked to do that</em>. For a 24/7 system,
-  “the supervisor re-runs its own pill on boot” is a perfectly good persona line; full client
-  packaging is rarely worth it for one overlay div.
+  The repository now contains the concrete production example this chapter once lacked:
+  <code>lib/client.js</code> registers the durable Feed and Supervisor settings card, while
+  <code>lib/index.js</code> supplies their host routes. <code>package.json</code> declares
+  <code>dsh.client.platform: web</code> and exports <code>./client</code>, so the harness's client-module
+  scan serves it without rebuilding the core frontend. Copy that pattern only when your new surface
+  earns a permanent packaged seat; use chapter 11's retired pill exercise for disposable experiments.
 </p>
 
 <nav class="pager">

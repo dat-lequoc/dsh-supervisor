@@ -57,17 +57,19 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
       <td><code>get_goal</code> → inspect durable state and relevant runbooks/scripts → <code>start_goal</code>/<code>GOAL.md</code> → native goal armed and work continues in the same turn.</td>
       <td><code>GOAL.md</code>; goal visible in UI; a progress line.</td></tr>
   <tr><td>2</td><td><em>(nothing)</em></td>
-      <td>First worker spawned with a complete structured task; check-in reminder armed; spawn logged.</td>
-      <td>Spawn call visible in chat; <code>CHANGELOG.jsonl</code> line; <code>schedule_list</code> shows the recurring reminder; child session appears in sidebar.</td></tr>
+      <td>First worker spawned with a complete structured task and explicit allowed model; result names
+      route, modalities, and effective effort; check-in reminder armed; spawn logged.</td>
+      <td>Spawn call/result visible in chat; <code>CHANGELOG.jsonl</code> line; <code>schedule_list</code> shows the recurring reminder; child session appears in sidebar.</td></tr>
   <tr><td>3</td><td><em>(nothing — wait ≥ 5 min with the worker running)</em></td>
-      <td>Timer wake: liveness + log inspection + one-line verdict; no gratuitous steering.</td>
-      <td>Verdict line in <code>NOTES.md</code> timestamped at the wake.</td></tr>
+      <td>Timer wake: liveness + concrete report/artifact/log comparison with the previous checkpoint.
+      If nothing changed, it probes immediately; a second unchanged check interrupts and recovers.</td>
+      <td>Evidence-backed checkpoint or probe line in <code>NOTES.md</code>; never a repeated bare “still running” verdict.</td></tr>
   <tr><td>4</td><td><em>(stay silent when asked about the output location)</em></td>
       <td>Question logged <code>pending</code> → patience reminder → after 2 min: <code>assumed</code> with the assumption recorded; work continues.</td>
       <td><code>questions.jsonl</code> shows the status transition; an <code>assumption</code> line in CHANGELOG.</td></tr>
   <tr><td>5</td><td>“Have the worker also count the .zh.md files.”</td>
-      <td>Steer via <code>send_message</code> — no kill, no respawn.</td>
-      <td><code>steer</code> CHANGELOG line; the correction visible as the next user-role turn in the child’s session.</td></tr>
+      <td>Steer via <code>send_message</code> at the running worker's next model step — no kill, no respawn.</td>
+      <td><code>steer</code> CHANGELOG line; the correction is visible in and redirects the running child turn.</td></tr>
   <tr><td>6</td><td>“That worker is off the rails. Kill it and restart with a tighter brief.”</td>
       <td><code>interrupt_agent</code> → kill logged → fresh spawn with visibly narrowed scope.</td>
       <td><code>kill</code> + <code>spawn</code> lines; old child idle in <code>list_agents</code>; new child session.</td></tr>
@@ -78,6 +80,13 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
       <td>Treated as post-completion steering: <code>GOAL_AMENDMENTS.md</code> entry → a new small native goal or direct trivial edit, per its judgment — with the choice logged.</td>
       <td>Amendment entry; updated SUMMARY.md.</td></tr>
 </table>
+
+<p>
+  Add one blocked-worker assertion while the run is active: give a worker a genuinely undiscoverable
+  choice. Its tool catalog must not contain <code>ask_user_question</code>; it must call <code>report</code>,
+  producing a <code>subagent-report</code> wake in the parent. Answering with <code>send_message</code> must
+  continue that same child.
+</p>
 
 <h2>Driving it headless (how this run was actually tested)</h2>
 <p>
@@ -117,9 +126,22 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
         proceeds. <strong>It must not</strong> re-interview, re-write GOAL.md, or spawn a duplicate worker
         for work already done.</li>
     <li><strong>Caveat to verify honestly:</strong> a schedule reminder that would have fired <em>while the
-        process was down</em> is delivered per the schedule subsystem’s catch-up rules on resume — but
-        your dynamic pill from chapter 11 is gone (process memory). Re-run it if wanted; note that
-        this is expected, not a failure.</li>
+        process was down</em> is delivered per the schedule subsystem’s catch-up rules on resume. The
+        packaged Feed and its stopped-state fold return automatically; they are not process-memory
+        dynamic plugins.</li>
+  </ol>
+</div>
+
+<h2>The Full stop drill</h2>
+<div class="box test">
+  <span class="box-title">Test the terminal operator action</span>
+  <ol>
+    <li>With a worker running and the recurring check-in armed, open Feed and click
+        <strong>■ Full stop</strong> (repeat once from a worker's Feed to verify root-lineage targeting).</li>
+    <li>Expect the active supervisor turn to stop and every schedule reminder to disappear. Refresh:
+        the stopped status remains. The worker itself is not killed and may settle once.</li>
+    <li>Wait beyond <code>wakeMinutes</code>: the supervisor must not recur. Then send a direct user prompt;
+        that explicit resume should re-arm exactly one check-in if a worker remains.</li>
   </ol>
 </div>
 
@@ -141,6 +163,8 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
   <tr><td>Forgot the CHANGELOG line for a steer</td><td>Protocol violation</td><td>Move logging into the verb’s own sentence: “Steer = send_message + one CHANGELOG line, always together.”</td></tr>
   <tr><td>Answered its own question instantly instead of waiting</td><td>Protocol gap</td><td>Add: “A question you can answer by inspection is not a user question — resolve it and move on; only user-owned unknowns enter questions.jsonl.”</td></tr>
   <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>
+  <tr><td>Worker waited in <code>ask_user_question</code></td><td>Mechanism regression</td><td>Verify the guarded spawn request carries <code>toolFilter.deny = ['ask_user_question']</code>; the child-scoped <code>report</code> tool must remain.</td></tr>
+  <tr><td>Spawn rejected an effort</td><td>Policy</td><td>The chosen route does not advertise the configured fixed/inherited effort. Select a supported catalog value or <code>provider/default</code>; do not expect clamping.</td></tr>
   <tr><td>Tool errored (schedule missing, spawn rejected)</td><td>Mechanism</td><td>Chapter 6/8 regression: re-validate the preset; check the profile patch still composes (tmux log).</td></tr>
 </table>
 
@@ -148,13 +172,13 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 <p>
   Passing this chapter means you have what the design document calls the headless core — goal
   goal setup, delegation, supervision, questions, files, resilience — built from a preset, a persona,
-  two YAML rows, and a file convention. The 24/7 mission (X.com growth or anything else) is now “run
+  one schedule row, narrow bundled policy plugins, and a file convention. The 24/7 mission is now “run
   start a bigger goal and let it loop,” plus whatever worker tooling that mission needs —
   which workers install themselves at runtime, per their tasks.
 </p>
 <p>
   What remains optional: the custom machinery the plan originally front-loaded. If you want it —
-  structured traces, a blocking wait, an HTTP state endpoint, a persistent pill — chapter 13 shows
+  structured traces, a blocking wait, or mission-specific UI beyond the shipped Feed — chapter 13 shows
   the packaged-plugin path with a real installed example as your template.
 </p>
 
