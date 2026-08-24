@@ -138,10 +138,10 @@ python3 $HOME/src/dsh-supervisor/tutorial/drive.py tail  "$S"</code></pre>
   <ol>
     <li>With a worker running and the recurring check-in armed, open Feed and click
         <strong>■ Full stop</strong> (repeat once from a worker's Feed to verify root-lineage targeting).</li>
-    <li>Expect the active supervisor turn to stop and every schedule reminder to disappear. Refresh:
-        the stopped status remains. The worker itself is not killed and may settle once.</li>
+    <li>Expect the active supervisor turn and all delegated worker branches to stop, and every schedule
+        reminder to disappear. Refresh: the stopped status remains and no worker is still running.</li>
     <li>Wait beyond <code>wakeMinutes</code>: the supervisor must not recur. Then send a direct user prompt;
-        that explicit resume should re-arm exactly one check-in if a worker remains.</li>
+        that explicit resume starts only the supervisor; stopped workers do not resume automatically.</li>
   </ol>
 </div>
 

@@ -22,7 +22,7 @@
   <p class="lede">Your design sketched two custom tabs. This chapter shows how much of that the
   shipped web UI already gives you for free, then walks the one piece the bundle now ships — the
   <strong>Feed</strong> view tab, live Supervisor settings, and the durable <strong>Full stop</strong>
-  control that ends recurring wake-ups.</p>
+  control that ends the whole delegated run.</p>
 </header>
 
 <h2>What the shipped UI already is</h2>
@@ -82,14 +82,14 @@
   can wake the supervisor again. The Feed header's <strong>■ Full stop</strong> control targets the root
   <code>main-agent</code> even when opened from a worker Feed. If the root is cold, the browser resumes
   the existing session without starting a turn, then <code>POST /supervisor/stop?session=…</code> aborts
-  active work, waits for idle, enters the agent's exclusive maintenance window, deletes every active
-  schedule reminder, and flushes persistence again. Running workers are deliberately not killed:
-  each may deliver one final settle report, but no reminder recurs.
+  active work, waits for idle, releases every resident continuable worker branch recursively, enters
+  the agent's exclusive maintenance window, deletes every active schedule reminder, and flushes
+  persistence again. Workers remain visible in session history, but they no longer run or report.
 </p>
 <p>
   <code>GET /supervisor/stop?session=…</code> folds live or cold durable state, so the stopped status
-  survives refresh. A later direct user prompt is an explicit resume; if workers remain, the persona
-  re-arms one recurring check-in and the Full stop button becomes available again.
+  survives refresh. A later direct user prompt explicitly resumes the supervisor; it does not restart
+  the stopped workers automatically, and the Full stop button becomes available again when work is armed.
 </p>
 
 <h2>The meta-config card (Settings → Plugins → Supervisor)</h2>

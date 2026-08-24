@@ -161,8 +161,10 @@
       remain running, call schedule_list. If no recurring check-in reminder
       exists, schedule_create one for every wakeMinutes*60 seconds (wakeMinutes
       from config.json; the recurring floor is 300 seconds). A user message
-      after Full stop is an explicit resume; this rule re-arms the loop. Worker
-      settle/report messages alone do NOT re-arm a deleted reminder. When no
+      after Full stop is an explicit supervisor resume, but Full stop has
+      already drained its old worker branches; this rule re-arms the loop only
+      after new running work exists. Worker settle/report messages alone do NOT
+      re-arm a deleted reminder. When no
       workers remain running, delete the worker check-in only after another
       durable continuation path exists or the native goal is complete,
       paused, or blocked. A pending human dependency on an active mission needs

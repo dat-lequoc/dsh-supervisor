@@ -236,14 +236,13 @@ button ends that for real. From a worker's Feed it resolves the lineage back to
 the root `main-agent`; if that supervisor is cold, the browser first resumes it
 through Harness's existing-id `session.create` path without starting a turn.
 `POST /supervisor/stop?session=…` then aborts the active turn, waits for idle,
-flushes before folding, and deletes **every** active schedule reminder from
-inside the agent's exclusive maintenance window, followed by a second
-persistence flush. `GET` on the same route folds live or cold durable state, so
-a successful stop replaces the button with its stopped status even after a page
-refresh. Running workers are not killed — each may wake the supervisor once
-with its settle report, but nothing recurs. A later manual prompt explicitly
-resumes the supervisor, re-arms its recurring check-in when workers remain, and
-makes the Full stop control available again.
+releases every resident continuable worker branch recursively, flushes before
+folding, and deletes **every** active schedule reminder from inside the agent's
+exclusive maintenance window, followed by a second persistence flush. `GET` on
+the same route verifies the turn, reminders, and workers, so a successful stop
+replaces the button with its stopped status even after a page refresh. A later
+manual prompt explicitly resumes the supervisor; stopped worker sessions remain
+in history, but do not keep running or wake it.
 
 Looking for the **Shots** tab (the screenshot player over a browser daemon's
 `<workspace>/shots/` feed)? That is its own standalone plugin, **`dsh-shots`** —

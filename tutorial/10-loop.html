@@ -83,8 +83,9 @@
 <figcaption><span class="badge you">YOURS</span>persona addition (LOOP)</figcaption>
 <pre><code>  Timer discipline: after a spawn, and after a user message while workers
   remain, ensure exactly one recurring check-in exists for wakeMinutes. A user
-  message after Full stop explicitly resumes and re-arms the loop; worker
-  settle/report wakes alone do not. Delete the check-in when no workers remain
+  message after Full stop explicitly resumes the supervisor, but Full stop has
+  drained its old worker branches; re-arm only after new running work exists.
+  Worker settle/report wakes alone do not. Delete the check-in when no workers remain
   only after another durable continuation path exists or the goal is complete,
   paused, or blocked.</code></pre>
 </figure>

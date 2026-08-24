@@ -69,7 +69,7 @@
   <tr><td>Kills where a steer would do</td><td>Persona: “interrupt_agent first ONLY if the current turn must stop now” — move it adjacent to the steer rule; models read locally.</td></tr>
   <tr><td>Worker spawn rejects reasoning effort</td><td>The exact selected model does not advertise that route's configured fixed effort. Choose a supported catalog id on the model row or <code>provider/default</code>; the plugin never clamps.</td></tr>
   <tr><td>Settle notice is generic after a failed request</td><td>Intermediate failures are intentionally silent during native retries. Only an exhausted final error gains <code>Terminal failure [CODE]</code>; a successful retry settles normally.</td></tr>
-  <tr><td>Native stop square “didn't stick”</td><td>It aborts one turn, not durable reminders. Use Feed's <strong>■ Full stop</strong>; it deletes reminders after the agent is idle and persists the stopped fold.</td></tr>
+  <tr><td>Native stop square “didn't stick”</td><td>It aborts one turn, not workers or durable reminders. Use Feed's <strong>■ Full stop</strong>; it recursively stops delegated workers, deletes reminders after the agent is idle, and persists the stopped fold.</td></tr>
   <tr><td>CHANGELOG has gaps</td><td>Fuse logging into each verb’s sentence (“Steer = send_message + one CHANGELOG line, always together”).</td></tr>
   <tr><td>After restart it re-interviews</td><td>It didn’t consult <code>.agi/</code>/goal state — check GOAL.md exists and the goal tool shows the goal; if yes, strengthen STATE’s “restart must cost nothing.”</td></tr>
   <tr><td>Duplicate workers for done work</td><td>Outcome discipline: settle-notice triage must read outcome.md <em>before</em> planning; make step 4’s first bullet explicit.</td></tr>

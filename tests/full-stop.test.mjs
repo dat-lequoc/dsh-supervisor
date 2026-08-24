@@ -64,6 +64,49 @@ test('full stop flushes before folding and after every deletion', async () => {
   ])
 })
 
+test('full stop drains worker branches after idle and before schedule maintenance', async () => {
+  const order = []
+  const agent = fakeAgent(order)
+  const outcome = await fullStopAgent(
+    agent,
+    async () => { order.push('flush') },
+    () => agent.fold(),
+    {
+      stopChildren: async (parent) => {
+        assert.equal(parent, agent)
+        order.push('stop-children')
+        return ['worker-1', 'worker-2']
+      },
+    },
+  )
+
+  assert.deepEqual(outcome, {
+    kind: 'stopped',
+    ids: ['schedule-2', 'schedule-7'],
+    workerIds: ['worker-1', 'worker-2'],
+  })
+  assert.deepEqual(order, [
+    'cancel:user', 'idle', 'stop-children', 'cancel:user', 'idle', 'maintenance', 'flush', 'fold',
+    'append:schedule-2', 'append:schedule-7', 'flush',
+  ])
+})
+
+test('worker teardown failure does not mutate reminders', async () => {
+  const order = []
+  const agent = fakeAgent(order)
+  const failure = new Error('worker refused teardown')
+  const outcome = await fullStopAgent(
+    agent,
+    async () => { order.push('flush') },
+    () => agent.fold(),
+    { stopChildren: async () => { order.push('stop-children'); throw failure } },
+  )
+
+  assert.equal(outcome.kind, 'worker-stop-failed')
+  assert.equal(outcome.error, failure)
+  assert.deepEqual(order, ['cancel:user', 'idle', 'stop-children'])
+})
+
 test('a durability preflight failure never folds or appends', async () => {
   const order = []
   const agent = fakeAgent(order)
@@ -142,7 +185,7 @@ test('Feed stops the root supervisor from a worker view and removes the button',
       return {
         ok: true,
         status: 200,
-        json: async () => ({ live: true, durable: true, remindersDeleted: 1 }),
+        json: async () => ({ live: true, durable: true, remindersDeleted: 1, workersStopped: 2 }),
       }
     }
     throw new Error(`unexpected fetch ${url}`)
