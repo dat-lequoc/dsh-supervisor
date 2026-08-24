@@ -796,7 +796,7 @@ def doctor():
             import zstandard  # noqa: F401
             print("  zstd decoder:    Python zstandard (ok)")
         except ImportError:
-            print("  zstd decoder:    MISSING (run ./setup-tutorial.sh)")
+            print("  zstd decoder:    MISSING (run ./tutorial/setup.sh)")
     try:
         import yaml  # noqa: F401
         print("  PyYAML:          ok")

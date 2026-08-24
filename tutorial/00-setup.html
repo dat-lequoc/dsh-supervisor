@@ -31,7 +31,7 @@
   buttons:
 </p>
 <pre><code>cd "$HOME/src/dsh-supervisor"
-./setup-tutorial.sh</code></pre>
+./tutorial/setup.sh</code></pre>
 <p>
   Keep that terminal open and use the URL it prints. The script deliberately does <strong>not</strong>
   install dsh, clone DeepSeek Harness, configure a model, or create your lab; those learning steps
@@ -57,7 +57,7 @@ Python. Finally verify the Harness prerequisites:</p>
 node --version       # v22.19+ in 22.x, or v24+
 npm --version</code></pre>
 <pre><code>python3 --version
-test -x "$HOME/src/dsh-supervisor/.venv-tutorial/bin/python"</code></pre>
+test -x "$HOME/src/dsh-supervisor/tutorial/.venv/bin/python"</code></pre>
 
 <h2>Install DeepSeek Harness</h2>
 <pre><code>npm install --global @deepseek-ai/dsh

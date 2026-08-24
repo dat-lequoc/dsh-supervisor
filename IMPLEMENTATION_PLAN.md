@@ -6,7 +6,7 @@ where they disagree, v2 and DESIGN §15–16 win.
 
 **The step-by-step no longer lives here.** It lives in the 15-chapter course at
 `tutorial/` (open `tutorial/index.html`), where every milestone ends in a live test,
-and in the automated graders at `tests/grade.py` (see `tests/README.md`). This file is
+and in the automated graders at `tutorial/grade.py` (see `tutorial/GRADING.md`). This file is
 the index: what to build, in what order, where it is taught, and how it is graded.
 
 Build shape after DESIGN §15: **one authored preset + a persona + two host-plane config
@@ -42,7 +42,7 @@ deployment version changes, re-verify this table first.
 
 | # | Deliverable | Realized as | Tutorial | Grader |
 |---|---|---|---|---|
-| 0 | Clean-PC setup and lab sanity (course server, runtime, source, model, process, workspace) | `setup-tutorial.sh` for isolated grader dependencies/UI; Harness prerequisites remain explicit learning steps | setup + ch. 4 (+1–3, 5 for concepts) | web grade button / `grade.py m0` |
+| 0 | Clean-PC setup and lab sanity (course server, runtime, source, model, process, workspace) | `tutorial/setup.sh` for isolated grader dependencies/UI; Harness prerequisites remain explicit learning steps | setup + ch. 4 (+1–3, 5 for concepts) | web grade button / `grade.py m0` |
 | 1 | Installable `main-agent` preset and its policy frontends | install this bundle, restart, then inspect the package-installed preset and its `dsh-supervisor/goal`, `/control`, and `/spawn` rows | ch. 6 | `grade.py m1` |
 | 2 | Supervisor brain | inspect and exercise the packaged persona (GROUNDING/STATE/GOAL SETUP/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + verify the `.agi/` skeleton | ch. 7 | `grade.py m2` |
 | 3 | Time | verify the bundle-installed schedule row; patience = one-shot, check-in = recurring (N2). Manual profile-patch installation is an alternative path, never combined with the bundle | ch. 8 | `grade.py m3` |
@@ -57,7 +57,7 @@ exit code 0). MANUAL lines in the grader output are the human-judgment steps —
 ## 3. Milestone index (one line each; the chapters hold the detail)
 
 - **M0 — Lab** (setup + ch. 4): on a clean PC, clone this course and run
-  `setup-tutorial.sh` (isolated grader environment + unused localhost port), then install dsh,
+  `tutorial/setup.sh` (isolated grader environment + unused localhost port), then install dsh,
   clone Harness beside it under `$HOME/src`, configure one working model, start `dsh web` on port
   3080, and create `$HOME/agi-lab`. Never run a second dsh on the same home; never edit
   shipped presets or the Harness checkout.

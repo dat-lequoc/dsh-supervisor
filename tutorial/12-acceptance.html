@@ -99,12 +99,12 @@ touch $HOME/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
   <code>standingKeyFor</code>), <code>session.prompt</code> (<code>mode: queue | steer</code>),
   <code>session.list</code> (a <code>running</code> flag per session), <code>session.history</code>, and
   <code>agentPreset.copy</code> (the roster’s authoring write, over HTTP). The repo wraps these as
-  <code>tests/drive.py</code>:
+  <code>tutorial/drive.py</code>:
 </p>
-<pre><code>S=$(python3 $HOME/src/dsh-supervisor/tests/drive.py create --cwd $HOME/agi-acceptance)
-python3 $HOME/src/dsh-supervisor/tests/drive.py send  "$S" "Goal: produce SUMMARY.md … deliver."
-python3 $HOME/src/dsh-supervisor/tests/drive.py steer "$S" "kill that worker and rescope"
-python3 $HOME/src/dsh-supervisor/tests/drive.py tail  "$S"</code></pre>
+<pre><code>S=$(python3 $HOME/src/dsh-supervisor/tutorial/drive.py create --cwd $HOME/agi-acceptance)
+python3 $HOME/src/dsh-supervisor/tutorial/drive.py send  "$S" "Goal: produce SUMMARY.md … deliver."
+python3 $HOME/src/dsh-supervisor/tutorial/drive.py steer "$S" "kill that worker and rescope"
+python3 $HOME/src/dsh-supervisor/tutorial/drive.py tail  "$S"</code></pre>
 
 <h2>The restart drill</h2>
 <p>
@@ -147,7 +147,7 @@ python3 $HOME/src/dsh-supervisor/tests/drive.py tail  "$S"</code></pre>
 
 <h2>Grading and the failure ledger</h2>
 <p>
-  <strong>Auto-grade the whole run:</strong> <code>"$HOME/src/dsh-supervisor/grade-tutorial.sh" m7</code> — it re-runs the
+  <strong>Auto-grade the whole run:</strong> <code>"$HOME/src/dsh-supervisor/tutorial/grade.sh" m7</code> — it re-runs the
   milestone-2 through 5 graders against <code>$HOME/agi-acceptance</code>, then checks the
   acceptance-specific evidence (the restart resume marker in the supervisor’s log, the
   post-completion amendment). Steps only a human can judge are printed as MANUAL reminders.

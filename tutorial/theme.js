@@ -211,7 +211,7 @@
       } catch (error) {
         status.className = 'grade-status failed';
         status.textContent = 'Unavailable';
-        output.textContent = 'Start this course with ./setup-tutorial.sh, then use the URL it prints.\n\n'
+        output.textContent = 'Start this course with ./tutorial/setup.sh, then use the URL it prints.\n\n'
           + String(error);
         output.hidden = false;
       } finally {

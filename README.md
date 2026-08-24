@@ -20,10 +20,10 @@ Install Git and Python 3, clone this repository, then run its course launcher:
 mkdir -p "$HOME/src"
 git clone https://github.com/dat-lequoc/dsh-supervisor.git "$HOME/src/dsh-supervisor"
 cd "$HOME/src/dsh-supervisor"
-./setup-tutorial.sh
+./tutorial/setup.sh
 ```
 
-The launcher creates `.venv-tutorial`, installs the grader-only Python dependencies, selects
+The launcher keeps its environment under `tutorial/.venv`, installs the grader-only Python dependencies, selects
 an unused `127.0.0.1` port, and prints the tutorial URL. Its local server powers the grade
 buttons embedded in each milestone. It intentionally does not install dsh, clone DeepSeek Harness,
 configure a model, or create workspaces; the setup chapter teaches those steps explicitly.
@@ -256,34 +256,33 @@ generic browser-daemon tooling, deliberately not part of the supervisor.
 | `package.json` + `cordis.patch.yml` + `lib/` | The dsh bundle: manifest (`dsh.bundle.patch` + `dsh.client`), the inserted rows, setup/routes, non-blocking native-goal frontend, final-settlement diagnostics, and the browser half (`lib/client.js`: Feed tab, Full stop, settings card) |
 | `agent-presets/main-agent/` | The supervisor preset: persona (grounding, non-blocking goal setup, loop, questions), plugin-owned goal frontend, and the sole settings-guarded `subagent` worker row |
 | `agi-template/` | The `.agi/config.json` template for a new workspace |
-| `tutorial/` | A 14-chapter HTML course (open `tutorial/index.html`) teaching Cordis, the harness, and this build from scratch |
-| `tests/grade.py` | Automated milestone graders (m0–m7); `tests/drive.py` drives sessions headlessly over the HTTP RPC |
+| `tutorial/` | The self-contained 15-step course app: HTML/CSS/JS, setup/server, private requirements, grading UI/CLI, milestone grader, and optional headless driver |
 | `scripts/install-manual.sh` | Non-bundle fallback installer |
 | `DESIGN.md` / `IMPLEMENTATION_PLAN.md` | The design record (Q1–Q23, A1–A6, S1–S4, N1–N7, G1) and the v2 plan |
 
 ## Grade it
 
 ```sh
-./grade-tutorial.sh all --ws ~/agi-lab    # m0–m6 report with bar chart
-./grade-tutorial.sh m7 --ws ~/agi-acceptance  # acceptance + restart evidence
-./grade-tutorial.sh doctor                # what the grader can see
+./tutorial/grade.sh all --ws ~/agi-lab    # m0–m6 report with bar chart
+./tutorial/grade.sh m7 --ws ~/agi-acceptance  # acceptance + restart evidence
+./tutorial/grade.sh doctor                # what the grader can see
 ```
 
 Graders read only durable artifacts (preset files, patch/bundle rows, `.agi/`, session
-event logs) — nothing is executed in your agents. `tests/README.md` documents every
+event logs) — nothing is executed in your agents. `tutorial/GRADING.md` documents every
 check.
 
 ## Drive it headlessly (optional)
 
 ```sh
-S=$(python3 tests/drive.py create --cwd ~/agi-lab)          # new supervisor session
-python3 tests/drive.py send "$S" "your mission here"        # prompt + wait + tail
-python3 tests/drive.py tail "$S"                             # readable event tail
+S=$(python3 tutorial/drive.py create --cwd ~/agi-lab)       # new supervisor session
+python3 tutorial/drive.py send "$S" "your mission here"     # prompt + wait + tail
+python3 tutorial/drive.py tail "$S"                          # readable event tail
 ```
 
 ## Learn it from scratch
 
-Open `tutorial/index.html`. Part I teaches Cordis and the harness from zero (no
+Run `./tutorial/setup.sh` and open the URL it prints. Part I teaches Cordis and the harness from zero (no
 TypeScript assumed); Part II builds everything in this repo milestone by milestone,
 each with a live test and a grader; Part III covers packaged-plugin extensions —
 the very pattern this repo uses — and troubleshooting.

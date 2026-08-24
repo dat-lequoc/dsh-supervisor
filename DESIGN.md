@@ -11,7 +11,7 @@ second harness deep-dive (N1–N7, §15) — the core system now needs **zero cu
 plugins** — and finally **amended for grounding** (G1, §16): the Main Agent is a
 grounded manager, never a blind dispatcher.
 Implementation vehicle: the 15-chapter course in `tutorial/` (each milestone testable
-live) with automated graders in `tests/grade.py` (m0–m7). `IMPLEMENTATION_PLAN.md` v2
+live) with automated graders in `tutorial/grade.py` (m0–m7). `IMPLEMENTATION_PLAN.md` v2
 is the index that maps milestones → chapters → graders; the v1 custom-build plan is
 preserved in git history and its salvageable skeletons live in tutorial chapter 13.
 

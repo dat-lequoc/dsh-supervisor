@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-venv_dir="$repo_dir/.venv-tutorial"
+tutorial_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+venv_dir="$tutorial_dir/.venv"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Python 3 is required. Install it with your operating-system package manager." >&2
@@ -39,7 +39,7 @@ fi
 
 echo "Installing grader dependencies into $venv_dir ..."
 "$venv_dir/bin/python" -m pip install --disable-pip-version-check \
-  --requirement "$repo_dir/tutorial/requirements.txt"
+  --requirement "$tutorial_dir/requirements.txt"
 
 echo "Starting the tutorial on an unused localhost port..."
-exec "$venv_dir/bin/python" "$repo_dir/tutorial/server.py" --host 127.0.0.1 --port 0
+exec "$venv_dir/bin/python" "$tutorial_dir/server.py" --host 127.0.0.1 --port 0

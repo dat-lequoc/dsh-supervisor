@@ -12,9 +12,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-TUTORIAL_ROOT = REPO_ROOT / "tutorial"
-GRADER = REPO_ROOT / "tests" / "grade.py"
+TUTORIAL_ROOT = Path(__file__).resolve().parent
+GRADER = TUTORIAL_ROOT / "grade.py"
 TARGETS = {"doctor", "all", *(f"m{i}" for i in range(8))}
 
 
@@ -54,7 +53,7 @@ class TutorialHandler(SimpleHTTPRequestHandler):
         try:
             result = subprocess.run(
                 command,
-                cwd=REPO_ROOT,
+                cwd=TUTORIAL_ROOT,
                 capture_output=True,
                 text=True,
                 timeout=180,

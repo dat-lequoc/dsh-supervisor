@@ -3,14 +3,14 @@
 One command per milestone, run after finishing each chapter's "Test it live" box:
 
 The recommended interface is the <strong>Run grader</strong> button embedded in each tutorial milestone
-when the course is started with <code>./setup-tutorial.sh</code>. These commands are the equivalent CLI:
+when the course is started with `./tutorial/setup.sh`. These commands are the equivalent CLI:
 
 ```sh
-"$HOME/src/dsh-supervisor/grade-tutorial.sh" m1
-"$HOME/src/dsh-supervisor/grade-tutorial.sh" m4 --ws "$HOME/agi-lab"
-"$HOME/src/dsh-supervisor/grade-tutorial.sh" all
-"$HOME/src/dsh-supervisor/grade-tutorial.sh" m7
-"$HOME/src/dsh-supervisor/grade-tutorial.sh" doctor
+"$HOME/src/dsh-supervisor/tutorial/grade.sh" m1
+"$HOME/src/dsh-supervisor/tutorial/grade.sh" m4 --ws "$HOME/agi-lab"
+"$HOME/src/dsh-supervisor/tutorial/grade.sh" all
+"$HOME/src/dsh-supervisor/tutorial/grade.sh" m7
+"$HOME/src/dsh-supervisor/tutorial/grade.sh" doctor
 ```
 
 | Milestone | Chapter | What it grades |
@@ -33,7 +33,7 @@ nothing is mutated:
   `~/.dsh/profiles/web/cordis.patch.yml` (YAML loader tolerates `!!js` tags).
 - **Behavior**: read from the session event logs
   (`~/.dsh/sessions/<workspace>/<session>/session.jsonl.zstd`, decompressed with the
-  system `zstd`; live half-written logs are handled). Tool calls are matched by the
+  system CLI when present or the tutorial's private Python decoder; live half-written logs are handled). Tool calls are matched by the
   `tool/call` event's `data.name`; settle/report/schedule wakes by their message
   `source.kind`.
 - **State**: your workspace's `.agi/` files.
@@ -43,8 +43,8 @@ MANUAL lines are reminders of things only a human can judge (visuals, transcript
 quality); they never affect the score. A milestone "passes" at ≥ 90%, which is also the
 process exit code (0/1), so you can chain it in scripts.
 
-Requirements: Python 3 with PyYAML and either the <code>zstd</code> CLI or Python
-<code>zstandard</code>. <code>./setup-tutorial.sh</code> installs both Python packages in an isolated venv.
+Requirements: Python 3 with PyYAML and either the `zstd` CLI or Python
+`zstandard`. `./tutorial/setup.sh` installs both Python packages in an isolated venv.
 
 ## Honest limitations
 

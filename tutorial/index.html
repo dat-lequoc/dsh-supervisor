@@ -71,7 +71,7 @@
 <h2>Start from a clean PC</h2>
 <ul>
   <li>No Harness process or source checkout, preset, workspace, or supervisor plugin is assumed.</li>
-  <li>After cloning this course, <code>./setup-tutorial.sh</code> installs its grader dependencies and
+  <li>After cloning this course, <code>./tutorial/setup.sh</code> installs its grader dependencies and
       serves it on an unused localhost port. It does not hide any Harness setup.</li>
   <li><a href="00-setup.html">Required setup</a> installs dsh, clones DeepSeek Harness at the path used
       throughout the course, configures a model, starts the Harness web UI, and creates the lab workspace.</li>
@@ -91,10 +91,10 @@
   <li><strong>Test it live</strong> — a green box at the end of every milestone with the exact steps and the
       expected observation. Do not continue until it passes; later chapters assume it.</li>
   <li><strong>Auto-grading</strong> — every milestone box includes a <em>Run grader</em> button and the CLI fallback:
-      <code>"$HOME/src/dsh-supervisor/grade-tutorial.sh" m0…m7</code> scores the durable evidence (preset files, patch
+      <code>"$HOME/src/dsh-supervisor/tutorial/grade.sh" m0…m7</code> scores the durable evidence (preset files, patch
       rows, <code>.agi/</code> state, session event logs) and exits 0/1 at the 90% bar. <code>all</code> runs
       m0–m6 in one report; <code>doctor</code> shows what it can see. Details:
-      <code>$HOME/src/dsh-supervisor/tests/README.md</code>.</li>
+      <code>$HOME/src/dsh-supervisor/tutorial/GRADING.md</code>.</li>
 </ul>
 
 <p class="part-label">Part I — Understand the machine (chapters 1–5)</p>

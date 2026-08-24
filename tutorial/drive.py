@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the running dsh web process over its HTTP RPC API (POST /api/<method>).
+"""Course helper: drive dsh web over its HTTP RPC API (POST /api/<method>).
 
 A thin console for supervising the supervisor: send prompts, wait for the turn
 to finish, and print a readable tail of what happened. Used by the course's

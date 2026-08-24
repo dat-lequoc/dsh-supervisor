@@ -68,5 +68,5 @@ Done. Next:
   2. Open http://127.0.0.1:3080 -> new session -> workspace $WS
      -> preset "Main Agent (Supervisor)".
   3. Grade progress anytime:
-       python3 $REPO/tests/grade.py all --ws $WS
+       "$REPO/tutorial/grade.sh" all --ws "$WS"
 EOF
