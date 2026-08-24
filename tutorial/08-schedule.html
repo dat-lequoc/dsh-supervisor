@@ -42,7 +42,7 @@
 <p>Mapping to your two needs:</p>
 <table>
   <tr><th>Need</th><th>Mechanism</th></tr>
-  <tr><td>Question patience (<code>questionWaitMinutes</code>, default 5)</td><td><code>schedule_create</code> one-shot, <code>after_seconds: questionWaitMinutes*60</code>. No minimum — 2-minute patience works fine.</td></tr>
+  <tr><td>Question patience (<code>questionWaitMinutes</code>, template default 2)</td><td><code>schedule_create</code> one-shot, <code>after_seconds: questionWaitMinutes*60</code>. No minimum — 2-minute patience works fine.</td></tr>
   <tr><td>Periodic worker check-in (<code>wakeMinutes</code>, default 5)</td><td><code>schedule_create</code> recurring, <code>every_seconds: wakeMinutes*60</code> — created when a worker spawns, deleted when work is done. Minimum 300 s ⇒ <code>wakeMinutes ≥ 5</code>, which matches your default.</td></tr>
 </table>
 
@@ -64,7 +64,7 @@
   read it, it is exactly two rows (we will keep only one of them):
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/examples/web-schedule/cordis.yml (the shipped overlay)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/examples/web-schedule/cordis.yml (the shipped overlay)</figcaption>
 <pre><code>- insert:
     - id: time-context
       name: '@deepseek-ai/dsh-time-context'
@@ -91,27 +91,39 @@
 </div>
 <p>
   Host plane or preset? Host: the schedule <em>service and driver</em> serve every session and the tools
-  register globally — and more practically, this is the shipped overlay shape. So it goes in your
-  profile patch layer.
+  register globally. In the normal path it therefore lives in the supervisor bundle layer; the
+  user-owned profile patch is reserved for overrides.
 </p>
 
-<h2>Apply it</h2>
+<h2>Verify the row chapter 6 already installed</h2>
+<p>
+  The clean-machine path installed <code>dsh-supervisor</code> as a bundle in chapter 6, and that bundle's
+  <code>agi-schedule</code> row mounted <code>@deepseek-ai/dsh-schedule</code> at the restart. Verify it:
+</p>
+<pre><code>dsh --profile web --dump-config | grep -A2 'agi-schedule'</code></pre>
+<p>
+  Do <strong>not</strong> add another schedule row to <code>$HOME/.dsh/profiles/web/cordis.patch.yml</code>.
+  The service registers once per process; a duplicate mount is a composition error.
+</p>
+
+<details>
+<summary>Manual alternative when you deliberately skipped the bundle</summary>
 <p>Back up, then edit your live patch file:</p>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>/root/.dsh/profiles/web/cordis.patch.yml (replace the current <code>[]</code>)</figcaption>
+<figcaption><span class="badge you">YOURS</span>$HOME/.dsh/profiles/web/cordis.patch.yml (replace the current <code>[]</code>)</figcaption>
 <pre><code># Profile patch layer — applied after every bundle layer. Live-watched.
 - insert:
     - id: schedule
       name: '@deepseek-ai/dsh-schedule'</code></pre>
 </figure>
-<pre><code>cp /root/.dsh/profiles/web/cordis.patch.yml{,.bak}   # (before editing)
+<pre><code>cp $HOME/.dsh/profiles/web/cordis.patch.yml{,.bak}   # (before editing)
 # ... edit ...
 </code></pre>
 <p>
   No restart: the file is watched, and each change transactionally recomposes the tree
   (<code>packages/boot/app-boot/README.md</code>: “Every profile boot keeps <code>cordis.patch.yml</code>
   live through <code>watchUserPatches</code>… A rejected read, parse, or Loader candidate leaves the last
-  good tree running”). If you typo the YAML, the old tree keeps running and the server log (tmux)
+  good tree running”). If you typo the YAML, the old tree keeps running and the <code>dsh web</code> terminal
   shows <code>hmr/config-update-failed</code> — fix and save again.
 </p>
 
@@ -128,8 +140,7 @@
 <div class="box why">
   <span class="box-title">Field note: the packaged alternative</span>
   <p>
-    Once this project became an installable bundle (<code>dsh plugin --profile web add …</code> — see the
-    repo README and chapter 13), the same row ships in the <em>bundle’s own</em>
+    The normal course path installed the bundle in chapter 6. The same row ships in the bundle's own
     <code>cordis.patch.yml</code> instead, and this manual edit becomes unnecessary. Never both at once:
     the schedule service registers once per process, so a second mount collides. If the bundle is
     installed, keep your profile patch at <code>[]</code>; its row is addressable
@@ -137,11 +148,12 @@
     your deployment mounts schedule from somewhere else. The grader accepts either source.
   </p>
 </div>
+</details>
 
 <div class="box test">
   <span class="box-title">Test it live — milestone 3 acceptance</span>
-  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m3</code> — checks the patch rows, the
-     composed tree, the <code>schedule_create</code> call, reminder delivery, and the <code>assumed</code> question.</p>
+  <p><strong>Auto-grade:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m3</code> — checks the
+     composed row/tree, the <code>schedule_create</code> call, reminder delivery, and the <code>assumed</code> question.</p>
   <ol>
     <li><strong>Tools appeared (existing sessions too):</strong> in your <code>main-agent</code> session ask
         <em>“do you now have schedule tools?”</em> — expect <code>schedule_create</code> /

@@ -17,8 +17,8 @@ appears only in the optional extensions (§4).
 
 ## 1. Ground truth (verified in source this round)
 
-Everything below was read from the checkout at `/root/deepseek-harness`
-(dsh 0.1.0-rc.7) or the live deployment during the native-first rebuild. If the
+Everything below was read from the checkout at `$HOME/src/deepseek-harness`
+(dsh 0.1.1-rc.2) or the live deployment during the native-first rebuild. If the
 deployment version changes, re-verify this table first.
 
 | Fact | Source |
@@ -34,62 +34,67 @@ deployment version changes, re-verify this table first.
 | Schedule: one-shot `after_seconds` has no minimum; recurring `every_seconds` floor is **300 s** (⇒ `wakeMinutes ≥ 5`); reminders are durable session events delivered to the original session as ordinary turns; NOT mounted by default — the overlay is two insert rows | `docs/subsystems/schedule.md`; `examples/web-schedule/cordis.yml` |
 | Tool pipeline: `'tools/pre-execute'(exec, next)` is a waterfall returning `PreToolDecision` (`allow`/`deny`/`ask`); `next()` delegates to allow | `docs/subsystems/tools.md` line 693 |
 | Session storage: `~/.dsh/sessions/<ws-dashed>/<session-id>/session.jsonl.zstd`; first line is the header (`cwd`, `agentPreset`, and for children `origin:"subagent"` + `parentSession`); `tool/call` events carry `data.name` + stringified `data.arguments`; resume leaves a `session/end-seed` marker | observed in live logs (`--root-agi-acc5--` et al.) |
-| Out-of-tree plugin install pattern: npm package with `dsh.bundle.patch` manifest + one-row `cordis.patch.yml`, added to the profile's `package.json` as a `file:` dependency AND to `dsh.profile.bundles`; bundle layers compose at boot (one restart) while the profile patch file is live-watched | `packages/boot/app-boot/README.md` (Profiles); working example `/root/dsh-subagent-agy` installed in `/root/.dsh/profiles/web/package.json` |
+| Out-of-tree plugin install pattern: npm package with `dsh.bundle.patch` manifest + `cordis.patch.yml`; `dsh plugin --profile web add file:$PWD` adds the dependency and bundle entry together. Bundle layers compose at boot (one restart), while the profile patch file is live-watched | `packages/boot/app-boot/README.md` (Profiles); this repository's `package.json` and `cordis.patch.yml` |
 | Preset roster: `list/resolve/read/copy/remove/standingKeyFor`; `copy()` is the authoring write, `standingKeyFor()` is the real mount validation | `packages/preset/agent-presets/src/index.ts` |
-| Client slots for the optional pill / future tabs: `shell.overlay` (additive frame-wide layer, "a status pill belongs here") and `conversation.view` (one entry per view tab) | `packages/extensions/cordis-client-runner/src/client/slot-catalog.ts` |
+| Client slots for optional process-memory experiments: `shell.overlay` (additive frame-wide layer) and `conversation.view` (one entry per view tab) | `packages/extensions/cordis-client-runner/src/client/slot-catalog.ts` |
 
 ## 2. Deliverables → chapters → graders
 
 | # | Deliverable | Realized as | Tutorial | Grader |
 |---|---|---|---|---|
-| 0 | Lab sanity (process, UI, patch layer, workspace) | nothing to build | ch. 4 (+1–3, 5 for concepts) | `grade.py m0` |
-| 1 | `main-agent` preset | `agentPresets.copy('standard', …)` + `preset.yml` + one plugin-owned `subagent` row (N14) in the delegation group | ch. 6 | `grade.py m1` |
-| 2 | Supervisor brain | persona (GROUNDING/STATE/GOAL SETUP/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + `.agi/` skeleton (`config.json` = `wakeMinutes`, `questionWaitMinutes` only — N3) | ch. 7 | `grade.py m2` |
-| 3 | Time | schedule overlay: two insert rows in `profiles/web/cordis.patch.yml` (N6); patience = one-shot, check-in = recurring (N2) | ch. 8 | `grade.py m3` |
+| 0 | Clean-PC setup and lab sanity (runtime, source, model, process, workspace) | prerequisite installation; nothing custom to build | setup + ch. 4 (+1–3, 5 for concepts) | `grade.py m0` |
+| 1 | Installable `main-agent` preset and its policy frontends | install this bundle, restart, then inspect the package-installed preset and its `dsh-supervisor/goal`, `/control`, and `/spawn` rows | ch. 6 | `grade.py m1` |
+| 2 | Supervisor brain | inspect and exercise the packaged persona (GROUNDING/STATE/GOAL SETUP/LOOP/QUESTIONS/LIMITS per DESIGN §3, §15, §16) + verify the `.agi/` skeleton | ch. 7 | `grade.py m2` |
+| 3 | Time | verify the bundle-installed schedule row; patience = one-shot, check-in = recurring (N2). Manual profile-patch installation is an alternative path, never combined with the bundle | ch. 8 | `grade.py m3` |
 | 4 | Workers | native loop exercised by hand: spawn / steer (`send_message`) / kill (`interrupt_agent`) / `report` / settle notice — the old M0 smoke test, five observations | ch. 9 | `grade.py m4` |
 | 5 | The supervision loop | persona refinements (timer discipline, log-tail inspection, verdicts) + full-loop rehearsal with forced steer/kill/silent-question | ch. 10 | `grade.py m5` |
-| 6 | UI | native surfaces + tmux tail dashboard; optional dynamic status pill in `shell.overlay` (N5) | ch. 11 | `grade.py m6` |
-| 7 | Acceptance | scripted end-to-end mission on a virgin workspace + restart drill; exit criterion: every step passes twice in a row | ch. 12 | `grade.py m7` (re-runs m2–m5 on `/root/agi-acceptance`) |
+| 6 | UI | native surfaces + terminal tail dashboard + durable Supervisor Feed; historical dynamic-pill exercise is optional | ch. 11 | `grade.py m6` |
+| 7 | Acceptance | scripted end-to-end mission on a virgin workspace + restart drill; exit criterion: every step passes twice in a row | ch. 12 | `grade.py m7` (re-runs m2–m5 on `$HOME/agi-acceptance`) |
 
 Work milestones in order; do not start one before the previous grader passes (≥90%,
 exit code 0). MANUAL lines in the grader output are the human-judgment steps — do them.
 
 ## 3. Milestone index (one line each; the chapters hold the detail)
 
-- **M0 — Lab** (ch. 4): verify the running `dsh web` (tmux `dsh`, port 3080), the empty
-  profile patch, session storage on disk; create `/root/agi-lab`. Never run a second
-  dsh on the same home; never edit shipped presets or the checkout.
-- **M1 — Preset** (ch. 6): from a Creator-mode session, `copy('standard','main-agent')`;
-  write `preset.yml`; replace the native spawn frontend with the settings-guarded
-  `subagent` row (worker-protocol persona on the row; required explicit choice,
+- **M0 — Lab** (setup + ch. 4): on a clean PC, install prerequisites and dsh, clone both
+  repositories under `$HOME/src`, configure one working model, start `dsh web` on port
+  3080, and create `$HOME/agi-lab`. Never run a second dsh on the same home; never edit
+  shipped presets or the Harness checkout.
+- **M1 — Preset** (ch. 6): install this checkout with
+  `dsh plugin --profile web add file:$PWD`, restart dsh, and only then inspect the
+  package-installed `main-agent` preset. Verify the settings-guarded `subagent` row
+  (worker-protocol persona on the row; required explicit choice,
   with fresh installs allowing `runtime/current` from the Settings dropdown;
   attach a catalog-backed effort selector to every allowed route, default
   missing/fresh values to genuine provider default, expose no effort argument
   to the main agent, validate against the exact route, and persist fixed effort
   in the child header);
-  validate with `standingKeyFor`; start two sessions (realm check).
-- **M2 — Brain** (ch. 7): scaffold `.agi/`; write the supervisor persona; run
+  validate the mounted preset; start two sessions (realm check). Never author rows that
+  name `dsh-supervisor/*` before the package is a profile dependency.
+- **M2 — Brain** (ch. 7): verify the `.agi/` scaffold and read the exact installed
+  supervisor persona; run
   non-blocking goal setup (`get_goal` → inspect durable state and relevant
   runbooks/scripts → `start_goal`/`GOAL.md` → same-turn execution); test amendment and
   config-refusal discipline; grounding check (a discoverable fact must be looked up,
   not asked or delegated).
-- **M3 — Time** (ch. 8): add the two overlay rows (live reload — watch tmux for
-  `hmr/config-update-failed`); test 60 s one-shot delivery; test the patience flow to an
-  `assumed` question; know the 300 s recurring floor.
+- **M3 — Time** (ch. 8): verify the schedule row composed by the bundle; do not add a
+  duplicate profile row. Test 60 s one-shot delivery, the patience flow to an `assumed`
+  question, and the 300 s recurring floor. The manual patch is documented only for
+  installations that deliberately skipped the bundle.
 - **M4 — Workers** (ch. 9): drive all five observations by hand; verify the child's
   persona took and `outcome.md` landed under `.agi/subagents/<id>/`.
 - **M5 — Loop** (ch. 10): add timer-discipline + inspection persona text; run one small
   real mission end-to-end with every branch forced once; grade the CHANGELOG as a diary.
-- **M6 — UI** (ch. 11): adopt the native surfaces; optionally define/run the pill
-  (client half needs one approval; dynamic = dies with the process, re-run is two calls).
-- **M7 — Acceptance** (ch. 12): virgin `/root/agi-acceptance`, scripted lines only, no
+- **M6 — UI** (ch. 11): adopt the native surfaces, durable Supervisor Feed, and terminal
+  dashboard. The retired dynamic pill remains only as an optional Cordis exercise.
+- **M7 — Acceptance** (ch. 12): virgin `$HOME/agi-acceptance`, scripted lines only, no
   coaching; then the restart drill (`session/end-seed` marker proves resume). Keep the
   ledger next to this file; two clean runs = done.
 
 ## 4. Optional extensions (only when native stops being enough)
 
 Triggers and corrected designs live in tutorial ch. 13. One package
-(`/root/agi-extras`, pattern copied from `/root/dsh-subagent-agy`), one bundle row per
+(`$HOME/src/agi-extras`, patterned after this repository), one bundle row per
 feature so each is individually disable-able from the profile patch:
 
 | Extension | Build when | Key contract (verified) |

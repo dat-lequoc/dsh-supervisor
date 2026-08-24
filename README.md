@@ -14,14 +14,17 @@ and full process-restart resume. Grader scores: m0–m5 and m7 at 100%.
 
 ## Install (any PC with dsh)
 
-Prerequisites: Node.js ≥ 22.19 and dsh (`npm i -g @deepseek-ai/dsh`), with a model
+Prerequisites: Node.js 22.19+ in the 22.x line, or Node.js 24+, and dsh
+(`npm i -g @deepseek-ai/dsh`), with a model
 configured (web UI → Settings → Models; tested with Z.AI `glm-5.3`). For the graders:
 Python 3 + PyYAML and `zstd`.
 
 ```sh
-# from a git clone (or use github:you/dsh-supervisor directly):
-git clone <this-repo> dsh-supervisor
-dsh plugin --profile web add file:$PWD/dsh-supervisor
+# from a fresh user account (or install a published/GitHub package directly):
+mkdir -p "$HOME/src"
+git clone https://github.com/dat-lequoc/dsh-supervisor.git "$HOME/src/dsh-supervisor"
+cd "$HOME/src/dsh-supervisor"
+dsh plugin --profile web add "file:$PWD"
 
 # restart dsh once (bundle layers compose at boot):
 dsh web
@@ -40,8 +43,8 @@ That's the whole install. The one command registers the package as a **profile b
 Then create a workspace for the supervisor's state:
 
 ```sh
-mkdir -p ~/agi-lab/.agi/subagents
-cp dsh-supervisor/agi-template/config.json ~/agi-lab/.agi/config.json
+mkdir -p "$HOME/agi-lab/.agi/subagents"
+cp "$HOME/src/dsh-supervisor/agi-template/config.json" "$HOME/agi-lab/.agi/config.json"
 ```
 
 <details>

@@ -27,7 +27,7 @@
 <h2>What a continuable child actually is</h2>
 <p>The subagent subsystem doc defines it in one breath worth reading twice:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 116–124, abridged)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/subsystems/subagent.md (lines 116–124, abridged)</figcaption>
 <pre><code>A continuable background subagent is one durable child Session with at most one
 process-local Activation, the period when a reconstructed child Agent is
 resident. An Activation is not a request, result, cancellation, or Task: it may
@@ -41,8 +41,8 @@ persisted Session
 </figure>
 <p>Unpacked for a supervisor:</p>
 <ul>
-  <li><strong>The child is a real session</strong> — a durable JSONL log like any other, visible in the web
-      sidebar, greppable on disk. Not a throwaway task.</li>
+  <li><strong>The child is a real session</strong> — a durable logical JSONL log like any other, visible in
+      the web sidebar and inspectable with <code>zstd -dc</code> on disk. Not a throwaway task.</li>
   <li><strong>“Running” is temporary residency.</strong> When the child has turns to execute, an Activation
       exists; when it finishes and owns nothing, it settles and unloads. The durable session stays.</li>
   <li><strong>Cold resume is free.</strong> Messaging a child whose Activation is gone resurrects it from its
@@ -65,15 +65,16 @@ persisted Session
   calling request; fixed choices are exact <code>provider/model-id</code> routes. Fixed entries render
   with native input modalities (<code>[text]</code> / <code>[text,image]</code>), so the supervisor can
   route image work to a vision-capable worker the user approved. Empty settings disable spawning; no
-  route is inherited implicitly. Worker effort is configured independently: <code>runtime/current</code>
-  copies the main request's explicit effort, <code>provider/default</code> omits it, and fixed effort ids
-  must be advertised by the selected model. The tool result displays the effective route, modalities,
+  route is inherited implicitly. Each allowed model route owns its effort setting:
+  <code>provider/default</code> omits an explicit effort, while fixed effort ids must be advertised by that
+  selected model. Even <code>runtime/current</code> follows only the main request's model route and never its
+  effort. The tool result displays the effective route, modalities,
   and effort. The plugin always forwards the resolved route through native
   <code>SubagentRequest.agentOptions</code>. In background mode it calls
   <code>ctx.subagents.startContinuable()</code>:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/subsystems/subagent.md (Cordis API section)</figcaption>
 <pre><code>/**
  * Establish one durable continuable child and deliver its initial prompt.
  * Resolves when the child's inbox accepts that prompt, without waiting for
@@ -97,7 +98,7 @@ async startContinuable(spec: ContinuableStartSpec): Promise&lt;ContinuableStart&
 <h3>2 · Steer — <code>send_message</code></h3>
 <p>The native delivery table still owns idle, waiting, and cold children:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 128–135)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/subsystems/subagent.md (lines 128–135)</figcaption>
 <pre><code>SubagentRuntime.followup() is the sole continuation-message operation, and
 routing depends only on Activation residency:
 
@@ -117,7 +118,7 @@ routing depends only on Activation residency:
 
 <h3>3 · Kill — <code>interrupt_agent</code> + silence</h3>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (interrupt, abridged)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/subsystems/subagent.md (interrupt, abridged)</figcaption>
 <pre><code>interrupt(targetSessionId, authority): void
   // Fire-and-return: the cancel signal is issued before this returns, but the
   // target may keep running until it observes the signal. Unclaimed pending
@@ -145,7 +146,7 @@ routing depends only on Activation residency:
 
 <h3>5 · The settle notice — the free wake</h3>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/subsystems/subagent.md (lines 212 &amp; 222–231, abridged)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/subsystems/subagent.md (lines 212 &amp; 222–231, abridged)</figcaption>
 <pre><code>... when a resident Activation settles, it delivers one notice to the child's
 durable direct parent describing how that epoch ended and carrying its final
 assistant content. That delivery is unconditional for every child whose id a
@@ -196,20 +197,20 @@ prompt: |
 
   # Objective
   Produce an exact count of files matching *.zh.md under
-  /root/deepseek-harness/docs, with a per-subdirectory breakdown.
+  $HOME/src/deepseek-harness/docs, with a per-subdirectory breakdown.
 
   # Scope
   In: reading under that directory. Out: writing anywhere except your
   outcome file; network; installing anything.
 
   # Context
-  The directory exists and is readable. Your workspace is /root/agi-lab.
+  The directory exists and is readable. Your workspace is $HOME/agi-lab.
 
   # Protocol
   - Blocked on info only your supervisor/user has → call report with the
     precise question, then stop.
   - Done → write outcome.md (did / verified / remaining) under
-    /root/agi-lab/.agi/subagents/&lt;your session id&gt;/ , then report a
+    $HOME/agi-lab/.agi/subagents/&lt;your session id&gt;/ , then report a
     one-paragraph summary.
 
   # Constraints
@@ -228,12 +229,12 @@ run_in_background: true</code></pre>
 <h2>Test it live — the M0 smoke test, by hand</h2>
 <p>
   You now drive every verb yourself, as the user, before trusting the supervisor to. Use your
-  <code>main-agent</code> session in <code>/root/agi-lab</code>. This is the design’s five-observation M0,
+  <code>main-agent</code> session in <code>$HOME/agi-lab</code>. This is the design’s five-observation M0,
   adapted to your tools.
 </p>
 <div class="box test">
   <span class="box-title">Milestone 4 acceptance — five observations</span>
-  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m4</code> — reads the session event logs
+  <p><strong>Auto-grade:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m4</code> — reads the session event logs
      and verifies all five observations left their durable evidence (spawn/steer/kill calls, the
      <code>subagent-settled</code> and <code>subagent-report</code> messages, a child <code>report</code>, outcome.md).</p>
   <ol>
@@ -241,7 +242,7 @@ run_in_background: true</code></pre>
         role researcher; objective: sleep 90 seconds using bash, then count files in /tmp; protocol
         as usual (outcome.md + report).”</em> <strong>Expect:</strong> the tool result names a started child
         id; the supervisor’s turn ends. In the sidebar, a new child session appears; on disk,
-        <code>ls -lt /root/.dsh/sessions/--root-agi-lab--/</code> grew by one.</li>
+        <code>find "$HOME/.dsh/sessions" -name session.jsonl.zstd | wc -l</code> grew by one.</li>
     <li><strong>Steer lands at the next step.</strong> While the child sleeps, say: <em>“Steer it: also count
         directories, not just files.”</em> <strong>Expect:</strong> a <code>send_message</code> call; in the
         <em>child’s</em> session view, the correction is accepted into the running turn and affects the

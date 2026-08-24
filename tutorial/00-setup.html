@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup · Start on a clean PC — Supervisor on DSH</title>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<nav class="top">
+  <a href="index.html">⌂ Contents</a>
+  <span class="crumb">Setup · Clean machine</span>
+  <span class="spacer"></span>
+  <a href="01-big-picture.html">Chapter 1 →</a>
+</nav>
+<main>
+<header class="chapter">
+  <p class="kicker">Before Part I — Required setup</p>
+  <h1>Start on a clean PC</h1>
+  <p class="lede">This is the only supported starting state for the course: no running Harness,
+  no cloned repositories, no <code>main-agent</code> preset, and no supervisor plugin. Finish every
+  check on this page before chapter 1.</p>
+</header>
+
+<h2>Supported shell and prerequisites</h2>
+<p>
+  The commands use a POSIX shell on Linux or macOS. On Windows, run them inside WSL. Install
+  <strong>Git</strong>, <strong>Node.js 22.19+ in the Node 22 line or Node 24+</strong>,
+  <strong>Python 3</strong> with PyYAML, and the <strong>zstd</strong> CLI. Node 23 is not a supported
+  Harness runtime. Use an LTS installer from
+  <a href="https://nodejs.org/en/download">nodejs.org</a>; on Ubuntu/WSL the remaining packages are:
+</p>
+<pre><code>sudo apt update
+sudo apt install -y git python3 python3-yaml zstd</code></pre>
+<p>On macOS, install Git, Python 3, and zstd with Homebrew or your preferred package manager,
+then install PyYAML into that Python environment. Finally verify the actual executables the course uses:</p>
+<pre><code>git --version
+node --version       # v22.19+ in 22.x, or v24+
+npm --version</code></pre>
+<pre><code>python3 --version
+zstd --version
+python3 -c "import yaml; print(yaml.__version__)"</code></pre>
+<p>If the final command fails, install <code>PyYAML</code> with your OS package manager or in the Python
+environment from which you will run <code>tests/grade.py</code>. Do not continue until it imports.</p>
+
+<h2>Install DeepSeek Harness</h2>
+<pre><code>npm install --global @deepseek-ai/dsh
+dsh --version</code></pre>
+<p>
+  The npm installation is the runtime. The source checkout in the next step is for the course's cited
+  code tours; do not modify it.
+</p>
+
+<h2>Clone both repositories at the course paths</h2>
+<p>
+  Later commands deliberately use these stable paths. Keeping one convention makes every snippet
+  copyable and avoids machine-specific paths such as <code>/root/dev</code>.
+</p>
+<pre><code>mkdir -p "$HOME/src"
+git clone https://github.com/deepseek-ai/deepseek-harness.git \
+  "$HOME/src/deepseek-harness"
+git clone https://github.com/dat-lequoc/dsh-supervisor.git \
+  "$HOME/src/dsh-supervisor"
+
+test -f "$HOME/src/dsh-supervisor/package.json"
+test -f "$HOME/src/deepseek-harness/docs/architecture.md"</code></pre>
+
+<div class="box warn">
+  <span class="box-title">Do not install the supervisor bundle yet</span>
+  <p>
+    Chapter 6 installs this repository as a profile bundle <em>before</em> any
+    <code>dsh-supervisor/…</code> row is mounted. At the next boot, the bundle installs the matching
+    packaged <code>main-agent</code> preset. Keeping package and preset installation together prevents
+    rows from referring to package names that do not exist yet.
+  </p>
+</div>
+
+<h2>Start dsh and configure one model</h2>
+<p>Run the server in a terminal and leave that terminal open:</p>
+<pre><code>dsh web</code></pre>
+<p>
+  Open <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a>, then go to
+  <strong>Settings → Models</strong> and configure a working provider/model route. The tutorial cannot
+  test prompts until a model succeeds. A terminal multiplexer is optional; no chapter assumes one.
+</p>
+
+<h2>Create the lab workspace</h2>
+<pre><code>mkdir -p "$HOME/agi-lab/.agi/subagents"
+cp "$HOME/src/dsh-supervisor/agi-template/config.json" \
+  "$HOME/agi-lab/.agi/config.json"
+touch "$HOME/agi-lab/.agi/NOTES.md" \
+      "$HOME/agi-lab/.agi/progress.jsonl" \
+      "$HOME/agi-lab/.agi/questions.jsonl" \
+      "$HOME/agi-lab/.agi/CHANGELOG.jsonl"</code></pre>
+
+<div class="box test">
+  <span class="box-title">Setup gate — do not continue until all six pass</span>
+  <ol>
+    <li><code>node --version</code> is 22.19+ in the 22.x line, or 24+; Python imports <code>yaml</code>; <code>zstd</code> runs.</li>
+    <li><code>dsh --version</code> succeeds.</li>
+    <li>Both repositories exist under <code>$HOME/src/</code>.</li>
+    <li><a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a> loads.</li>
+    <li>A simple prompt in a standard session receives a model response.</li>
+    <li><code>$HOME/agi-lab/.agi/config.json</code> exists and
+        <code>$HOME/.dsh/profiles/web/package.json</code> was created.</li>
+  </ol>
+</div>
+
+<nav class="pager">
+  <a class="prev" href="index.html">← Contents</a>
+  <a class="next" href="01-big-picture.html">Chapter 1 — The big picture →</a>
+</nav>
+</main>
+</body>
+</html>

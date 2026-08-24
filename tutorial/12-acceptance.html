@@ -36,14 +36,14 @@
 <h2>Setup: a virgin workspace</h2>
 <figure class="code">
 <figcaption><span class="badge you">YOURS</span>acceptance setup</figcaption>
-<pre><code>mkdir -p /root/agi-acceptance/.agi/subagents
-cat &gt; /root/agi-acceptance/.agi/config.json &lt;&lt;'EOF'
+<pre><code>mkdir -p $HOME/agi-acceptance/.agi/subagents
+cat &gt; $HOME/agi-acceptance/.agi/config.json &lt;&lt;'EOF'
 { "wakeMinutes": 5, "questionWaitMinutes": 2 }
 EOF
-touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGELOG.jsonl}</code></pre>
+touch $HOME/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGELOG.jsonl}</code></pre>
 </figure>
 <p>
-  Open the tmux dashboard from chapter 11 against this workspace, then start a fresh
+  Optionally open the terminal dashboard from chapter 11 against this workspace, then start a fresh
   <code>main-agent</code> session on it. From here on you speak only the scripted lines — no hints, no
   “remember to log that.” If you must coach, that is a finding: note it, fix the persona, restart
   the run.
@@ -53,7 +53,7 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
 <p>Each row: what you say/do → what must happen → which artifact proves it.</p>
 <table>
   <tr><th>#</th><th>You</th><th>Must happen</th><th>Proof</th></tr>
-  <tr><td>1</td><td>“Goal: produce SUMMARY.md describing the layout of /root/deepseek-harness/docs — delegate the work, supervise, deliver.” <span class="muted">(Say nothing about where SUMMARY.md goes.)</span></td>
+  <tr><td>1</td><td>“Goal: produce SUMMARY.md describing the layout of $HOME/src/deepseek-harness/docs — delegate the work, supervise, deliver.” <span class="muted">(Say nothing about where SUMMARY.md goes.)</span></td>
       <td><code>get_goal</code> → inspect durable state and relevant runbooks/scripts → <code>start_goal</code>/<code>GOAL.md</code> → native goal armed and work continues in the same turn.</td>
       <td><code>GOAL.md</code>; goal visible in UI; a progress line.</td></tr>
   <tr><td>2</td><td><em>(nothing)</em></td>
@@ -101,10 +101,10 @@ touch /root/agi-acceptance/.agi/{NOTES.md,progress.jsonl,questions.jsonl,CHANGEL
   <code>agentPreset.copy</code> (the roster’s authoring write, over HTTP). The repo wraps these as
   <code>tests/drive.py</code>:
 </p>
-<pre><code>S=$(python3 /root/dev/tests/drive.py create --cwd /root/agi-acceptance)
-python3 /root/dev/tests/drive.py send  "$S" "Goal: produce SUMMARY.md … deliver."
-python3 /root/dev/tests/drive.py steer "$S" "kill that worker and rescope"
-python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
+<pre><code>S=$(python3 $HOME/src/dsh-supervisor/tests/drive.py create --cwd $HOME/agi-acceptance)
+python3 $HOME/src/dsh-supervisor/tests/drive.py send  "$S" "Goal: produce SUMMARY.md … deliver."
+python3 $HOME/src/dsh-supervisor/tests/drive.py steer "$S" "kill that worker and rescope"
+python3 $HOME/src/dsh-supervisor/tests/drive.py tail  "$S"</code></pre>
 
 <h2>The restart drill</h2>
 <p>
@@ -115,8 +115,8 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 <div class="box test">
   <span class="box-title">Test it live — restart resilience</span>
   <ol>
-    <li>Mid-mission (re-run steps 1–2 with a fresh goal, or before step 7), restart the process:
-        <code>tmux attach -t dsh</code> → <kbd>Ctrl-C</kbd> → <code>dsh web</code> → detach.</li>
+    <li>Mid-mission (re-run steps 1–2 with a fresh goal, or before step 7), return to the terminal
+        running dsh, press <kbd>Ctrl-C</kbd>, wait for shutdown, then run <code>dsh web</code> again.</li>
     <li>Reload the browser; open the <em>same</em> supervisor session (it is in the sidebar — sessions
         are durable).</li>
     <li>Say exactly: <em>“continue.”</em></li>
@@ -147,13 +147,13 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
 
 <h2>Grading and the failure ledger</h2>
 <p>
-  <strong>Auto-grade the whole run:</strong> <code>python3 /root/dev/tests/grade.py m7</code> — it re-runs the
-  milestone-2 through 5 graders against <code>/root/agi-acceptance</code>, then checks the
+  <strong>Auto-grade the whole run:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m7</code> — it re-runs the
+  milestone-2 through 5 graders against <code>$HOME/agi-acceptance</code>, then checks the
   acceptance-specific evidence (the restart resume marker in the supervisor’s log, the
   post-completion amendment). Steps only a human can judge are printed as MANUAL reminders.
 </p>
 <p>
-  Keep an acceptance ledger (a file in <code>/root/dev/</code>, next to the design): one line per step per
+  Keep an acceptance ledger (a file in <code>$HOME/src/dsh-supervisor/</code>, next to the design): one line per step per
   run — <code>pass</code> / <code>fail(reason)</code> / <code>coached(what)</code>. The design’s exit criterion,
   verbatim: every bullet passes <strong>twice in a row</strong>. Common first-run findings and their fixes:
 </p>
@@ -165,7 +165,7 @@ python3 /root/dev/tests/drive.py tail  "$S"</code></pre>
   <tr><td>Timer fired but it steered an on-track worker anyway</td><td>Protocol gap</td><td>Add an explicit default: “On-track means: recent tool calls consistent with Scope. If on track, do nothing but the NOTES.md verdict.”</td></tr>
   <tr><td>Worker waited in <code>ask_user_question</code></td><td>Mechanism regression</td><td>Verify the guarded spawn request carries <code>toolFilter.deny = ['ask_user_question']</code>; the child-scoped <code>report</code> tool must remain.</td></tr>
   <tr><td>Spawn rejected an effort</td><td>Policy</td><td>The chosen route does not advertise its configured fixed effort. Select a supported catalog value on that model row or <code>provider/default</code>; do not expect clamping.</td></tr>
-  <tr><td>Tool errored (schedule missing, spawn rejected)</td><td>Mechanism</td><td>Chapter 6/8 regression: re-validate the preset; check the profile patch still composes (tmux log).</td></tr>
+  <tr><td>Tool errored (schedule missing, spawn rejected)</td><td>Mechanism</td><td>Chapter 6/8 regression: re-validate the preset, inspect the composed tree, and read the <code>dsh web</code> log.</td></tr>
 </table>
 
 <h2>Where you stand</h2>

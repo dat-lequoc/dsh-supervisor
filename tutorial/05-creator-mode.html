@@ -22,7 +22,7 @@
   <p class="lede">The harness can read and modify itself while it runs — through an agent. This
   chapter introduces the <code>cordis</code> preset (“创造模式”, Creator mode), walks the seven
   <code>cordis_*</code> tools it carries, and has you define, run, and remove your first live plugin.
-  Chapter 6 then uses this mode to author your supervisor’s preset.</p>
+  These skills let you inspect the runtime now and author separately named preset variants later.</p>
 </header>
 
 <h2>What Creator mode is</h2>
@@ -31,7 +31,7 @@
   than any summary:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/agent.cordis.yml (lines 1–12)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/apps/cli/config/agent-presets/cordis/agent.cordis.yml (lines 1–12)</figcaption>
 <pre><code># The `cordis` agent preset: the standard coding agent, plus the ability to
 # read and write the runtime it is running in.
 #
@@ -45,8 +45,8 @@
 # mount. Treat a session on this preset as shell access ...</code></pre>
 </figure>
 <p>
-  “A person can ask an agent to author another agent” — that is precisely your chapter 6. The
-  preset = <code>standard</code> + three additions:
+  “A person can ask an agent to author another agent” is why this mode is useful when you later make
+  a variant. The Creator preset itself is <code>standard</code> + three additions:
 </p>
 <ul>
   <li>the row <code>tool-cordis</code> (package <code>@deepseek-ai/dsh-tool-cordis</code>) — the toolset;</li>
@@ -83,7 +83,7 @@
 <h3>The vocabulary: Plugin → Package → Run</h3>
 <p>Three ids, from the toolset’s own system prompt:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/tool-cordis/src/prompt.ts (“Identity, versions, and approval”)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/packages/extensions/tool-cordis/src/prompt.ts (“Identity, versions, and approval”)</figcaption>
 <pre><code>- pluginId identifies a Plugin that can be modified over time ...
 - packageId identifies one immutable Host/Client source version under a Plugin.
   To change code, define a new Package; never overwrite an old version.
@@ -120,7 +120,7 @@
   matter most:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/cordis-plugin-development/SKILL.md (condensed)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/cordis-plugin-development/SKILL.md (condensed)</figcaption>
 <pre><code>1. Plain JS only: no import/require, no TypeScript, no JSX.
    Client React code must use React.createElement(...).
 
@@ -146,7 +146,7 @@
 
 <h2>Your first live plugin, end to end</h2>
 <p>
-  Time to drive. Open the web UI → new session → workspace <code>/root/agi-lab</code> → preset
+  Time to drive. Open the web UI → new session → workspace <code>$HOME/agi-lab</code> → preset
   <strong>创造模式 / Creator mode</strong> (the <code>cordis</code> preset). Then paste each prompt below as a
   chat message and watch what the agent does. (You are practicing two skills at once: the tool
   lifecycle, and <em>directing</em> an agent that holds the tools — the same skill your supervisor will
@@ -164,7 +164,7 @@ Prompt 2:
    'agentPresets' and paste its method signatures."</code></pre>
 <p>
   That second query returns the roster’s real, current signatures — <code>list()</code>,
-  <code>copy()</code>, <code>standingKeyFor()</code> — the exact API chapter 6 scripts against. This
+  <code>copy()</code>, <code>standingKeyFor()</code> — the API the package setup and later preset variants rely on. This
   discover-before-code discipline is the skill’s standard workflow (steps 1–2), and it is why dynamic
   plugins rarely guess wrong: the runtime tells you its own contracts.
 </p>
@@ -228,10 +228,10 @@ Prompt 7:  "cordis_undefine it."</code></pre>
 <div class="box why">
   <span class="box-title">Why this matters for the supervisor build</span>
   <p>
-    Chapter 6 does not edit files by hand to create your preset — it asks a Creator-mode agent to call
-    <code>ctx.agentPresets.copy()</code> through exactly this define/run mechanism (a temporary probe
-    plugin that registers a <code>preset_*</code> tool, then is undefined). You now know every moving part
-    of that trick. Chapter 11 shows the same host/client split promoted into the installable bundle's
+    Chapter 6 installs the repository's exact packaged preset so the primary path cannot drift from
+    the plugin version that supplies its custom rows. The roster and dynamic-plugin mechanics you just
+    learned remain the supported way to copy that preset into a separately named variant and
+    mount-validate later edits. Chapter 11 shows the same host/client split promoted into the bundle's
     durable Feed tab and settings card.
   </p>
 </div>

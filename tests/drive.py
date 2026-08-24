@@ -6,13 +6,13 @@ to finish, and print a readable tail of what happened. Used by the course's
 test runs; also handy interactively.
 
 Usage:
-    drive.py create --cwd /root/agi-lab [--preset main-agent]
+    drive.py create --cwd "$HOME/agi-lab" [--preset main-agent]
     drive.py send  <sessionId> "message"            # prompt + wait + tail
     drive.py steer <sessionId> "message"            # mode=steer
     drive.py wait  <sessionId> [--timeout 900]      # wait until not running
     drive.py tail  <sessionId> [--n 25]             # last N events, readable
     drive.py watch <sessionId> [--timeout 900]      # wait, then tail
-    drive.py sessions [--cwd /root/agi-lab]         # list sessions
+    drive.py sessions --cwd "$HOME/agi-lab"         # list sessions
     drive.py children <sessionId>                   # subagent.list for parent
 
 The wire envelope (verified: packages/host/apiproxy/src/fetch/handler.ts):

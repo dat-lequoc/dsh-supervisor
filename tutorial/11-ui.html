@@ -69,7 +69,7 @@
 </ul>
 <div class="box test">
   <span class="box-title">Test it live — milestone 6 acceptance</span>
-  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m6</code> — verifies the installed
+  <p><strong>Auto-grade:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m6</code> — verifies the installed
      client half, the <code>__DSH_BOOT__</code> row, the served bundle, and the feed route. Then the visual:
      open your <code>main-agent</code> session → click <strong>Feed</strong> in the view ring → goal card,
      workers, progress timeline all present and refreshing (~5 s), with <strong>■ Full stop</strong>
@@ -119,13 +119,13 @@
 
 <h2>The observation habit (zero code)</h2>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>a supervision dashboard in one tmux window</figcaption>
+<figcaption><span class="badge you">YOURS</span>an optional supervision dashboard in another terminal</figcaption>
 <pre><code># pane 1 — the feed and the questions, live:
-tail -f /root/agi-lab/.agi/progress.jsonl /root/agi-lab/.agi/questions.jsonl \
-        /root/agi-lab/.agi/CHANGELOG.jsonl
+tail -f $HOME/agi-lab/.agi/progress.jsonl $HOME/agi-lab/.agi/questions.jsonl \
+        $HOME/agi-lab/.agi/CHANGELOG.jsonl
 
-# pane 2 — workers appearing/settling:
-watch -n 5 'ls -lt /root/.dsh/sessions/--root-agi-lab--/ | head'</code></pre>
+# pane 2 — workspace/session storage changing:
+watch -n 5 "find $HOME/.dsh/sessions -maxdepth 2 -type f | tail"</code></pre>
 </figure>
 <p>
   During chapter 12’s acceptance run, keep this open next to the browser. Most people find they never
@@ -144,7 +144,7 @@ watch -n 5 'ls -lt /root/.dsh/sessions/--root-agi-lab--/ | head'</code></pre>
   declares a frame-wide floating layer exactly for additions like this:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts (shell.overlay entry, abridged)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts (shell.overlay entry, abridged)</figcaption>
 <pre><code>key: 'shell.overlay', kind: 'list', scope: 'root',
 summary: 'Frame-wide floating layer, above every column and outside their
 scroll containers.',
@@ -161,7 +161,7 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
   <code>cordis-plugin-development</code> skill).
 </p>
 <p>
-  In a Creator-mode session (<code>/root/agi-lab</code>), have it first <em>query the slot for real</em>
+  In a Creator-mode session (<code>$HOME/agi-lab</code>), have it first <em>query the slot for real</em>
   (<code>cordis_inspect_query</code>, client, <code>Slots.listSubTree</code>, root <code>shell.overlay</code> —
   a browser tab must be open to answer), then define and run this two-halved plugin:
 </p>
@@ -173,7 +173,8 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
     const fs = ctx.get('fs')
     if (fs === undefined) return
     harness.handle('agi-status', async () =&gt; {
-      const base = '/root/agi-lab/.agi'
+      // Replace this with the absolute path printed by: echo "$HOME/agi-lab/.agi"
+      const base = '/absolute/path/to/agi-lab/.agi'
       const read = async (f) =&gt; {
         try { return await fs.readText(base + '/' + f) } catch { return '' }
       }
@@ -250,7 +251,7 @@ a fresh id is added beside the shipped entries instead of replacing them.'</code
         appears in the Creator session → approve it once.</li>
     <li>The pill appears bottom-right of the web UI, in <em>every</em> open tab.</li>
     <li>Append a line and watch it change within ~5 s:
-        <code>echo '{"ts":"now","text":"pill test"}' &gt;&gt; /root/agi-lab/.agi/progress.jsonl</code></li>
+        <code>echo '{"ts":"now","text":"pill test"}' &gt;&gt; $HOME/agi-lab/.agi/progress.jsonl</code></li>
     <li>Add a fake pending question line to <code>questions.jsonl</code> → the ❓ counter appears; flip its
         status to <code>answered</code> → it clears.</li>
     <li><code>cordis_stop</code> → the pill vanishes everywhere (effects unwound, both sides of the wire).

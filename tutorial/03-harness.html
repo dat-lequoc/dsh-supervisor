@@ -34,8 +34,7 @@
  + @deepseek-ai/dsh-base            ← bundle: model adapters, tools, persistence,
  |                                     sandbox, subagent machinery, jobs, goals ...
  + @deepseek-ai/dsh-web-app         ← bundle: the browser application
- + @dsh-external/…-antigravity      ← bundle: a third-party plugin (installed here!)
- + profiles/web/cordis.patch.yml    ← YOUR profile patch layer (currently [])
+ + profiles/web/cordis.patch.yml    ← your profile override layer
  + ~/.dsh/cordis.patch.yml          ← home-level patch layer (if present)
  + --patch overlays                 ← command-line extras</code></pre>
 <p>Each concept, precisely:</p>
@@ -52,9 +51,9 @@
       restart. <span class="muted">(Same source: “Every profile boot keeps <code>cordis.patch.yml</code> live
       through <code>watchUserPatches</code>.”)</span></li>
 </ul>
-<p>Your actual web profile on this machine — worth reading now because chapter 8 edits it:</p>
+<p>Your clean web profile — worth reading before chapter 6 adds its first external bundle:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/.dsh/profiles/web/package.json</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/.dsh/profiles/web/package.json</figcaption>
 <pre><code>{
   "name": "dsh-profile-web",
   "private": true,
@@ -62,21 +61,16 @@
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-web-app",
-        "@dsh-external/dsh-subagent-antigravity"
+        "@deepseek-ai/dsh-web-app"
       ]
     }
-  },
-  "dependencies": {
-    "@dsh-external/dsh-subagent-antigravity": "file:/root/dsh-subagent-agy"
   }
 }</code></pre>
 </figure>
 <p>
-  Notice the third bundle: someone already installed an out-of-tree plugin into this very profile,
-  as a plain <code>file:</code> dependency pointing at <code>/root/dsh-subagent-agy</code>. That package is
-  the exact pattern chapter 13 follows for your own host plugins — proof by example that you never
-  need to touch the harness checkout to extend it.
+  On the supported baseline there is no external dependency yet. Chapter 6 runs the supported
+  <code>dsh plugin</code> command, which adds <code>dsh-supervisor</code> to both the dependency map and this
+  ordered bundle list. You inspect the before/after rather than hand-editing this manifest.
 </p>
 <p>To see the fully composed tree your machine boots, there is a dump command (read-only, safe):</p>
 <pre><code>dsh --profile web --dump-config</code></pre>
@@ -92,7 +86,7 @@
   states the criterion crisply:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/editing-cordis-compositions/SKILL.md (lines 17–23)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/apps/cli/config/agent-presets/cordis/skills/editing-cordis-compositions/SKILL.md (lines 17–23)</figcaption>
 <pre><code>Two planes, and the choice is not about how "agent-related" something feels —
 it is about whether the thing must be shared.
 
@@ -112,7 +106,7 @@ per session, mounted under that session's scope and unwound with it.</code></pre
   <tr><td>Supervisor persona, protocol text</td><td>Preset</td><td>One session’s identity.</td></tr>
   <tr><td><code>subagent</code>, <code>send_message</code>, <code>goal</code>, <code>todo</code> tools</td><td>Preset rows (consuming host services)</td><td>The preset decides <em>whether this agent can call them</em>; the machinery behind them is host-side.</td></tr>
   <tr><td>The subagent registry + spawn/fork backends</td><td>Host (already there)</td><td>Cross-session singleton; the browser queries it too.</td></tr>
-  <tr><td>Schedule service + tools (chapter 8)</td><td>Host — one row in the bundle/profile patch</td><td>Not mounted by default; the supervisor bundle adds it process-wide without the optional time-context row.</td></tr>
+  <tr><td>Schedule service + tools (chapter 8)</td><td>Host — one row in the supervisor bundle</td><td>Not mounted by default; chapter 6's bundle install adds it process-wide without the optional time-context row.</td></tr>
   <tr><td>Any future custom plugin (chapter 13)</td><td>Host, via profile dependency</td><td>Must observe every session / register process-wide capability.</td></tr>
 </table>
 
@@ -123,8 +117,8 @@ per session, mounted under that session's scope and unwound with it.</code></pre
     and the second session mounting the preset collides with the first. The preset mounter
     <em>rejects</em> this instead of letting it blow up later, with a message that names the offending
     service. You met the fix in chapter 2 (wrap provider + consumers in one
-    <code>isolate</code> group); the practical consequence is simpler: <strong>copy <code>standard</code> and
-    keep its groups intact</strong>, and you inherit correct realms for free.
+    <code>isolate</code> group); the practical consequence is simpler: <strong>preserve the groups inherited
+    from <code>standard</code></strong>. The packaged preset does so, and chapter 6 proves it with two sessions.
   </p>
 </div>
 
@@ -138,10 +132,10 @@ per session, mounted under that session's scope and unwound with it.</code></pre
 </p>
 <p>
   A service called the <strong>roster</strong> (<code>ctx.agentPresets</code>) owns discovery, authoring, and
-  validation. Its verbs — which you will call in chapter 6 — come straight from its source:
+  validation. The package setup uses it to install <code>main-agent</code>; these verbs also support later variants:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/preset/agent-presets/src/index.ts (abridged signatures)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/packages/preset/agent-presets/src/index.ts (abridged signatures)</figcaption>
 <pre><code>async list(): Promise&lt;AgentPreset[]&gt;        // every preset: id, trust, real path
 async resolve(id?): Promise&lt;AgentPreset&gt;    // one preset, with the file path to edit
 async read(id): Promise&lt;string&gt;             // its composition text
@@ -157,7 +151,8 @@ async standingKeyFor(id?): Promise&lt;ScopeKey&gt;
     “A composition written from scratch usually forgets a group realm or a consumer row; a copy
     starts loadable” (<code>editing-cordis-compositions</code> skill). <code>copy()</code> also validates the
     id, lands the copy in the writable root wherever this deployment configured it, and rolls back on
-    failure. Starting from <code>standard</code> is not laziness — it is the supported authoring path.
+    failure. This repository already ships the finished preset so its rows cannot drift from its plugin
+    version. If you author a variant, copy the installed <code>main-agent</code> to a new id through this API.
   </p>
 </div>
 
@@ -175,7 +170,7 @@ async standingKeyFor(id?): Promise&lt;ScopeKey&gt;
       more is owed.</li>
 </ul>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/architecture.md (“Turn flow”, abridged)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/architecture.md (“Turn flow”, abridged)</figcaption>
 <pre><code>turn/start
   claim next-step input plus one queued message
   assemble prompt sections + tool schemas
@@ -220,7 +215,7 @@ tools/result        → the immutable outcome</code></pre>
 <h2>Where new behavior goes — the official map</h2>
 <p>The architecture doc closes with a table you should bookmark; the rows you will actually use:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/architecture.md (“Where new behavior goes”, selected rows)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/architecture.md (“Where new behavior goes”, selected rows)</figcaption>
 <pre><code>| Goal                                        | Mechanism                     |
 |---------------------------------------------|-------------------------------|
 | Add a model-facing capability               | register on ctx.tools         |
@@ -235,7 +230,7 @@ tools/result        → the immutable outcome</code></pre>
 <div class="box test">
   <span class="box-title">Check your understanding</span>
   <ol>
-    <li>Why does adding the schedule capability (chapter 8) go in the <em>profile patch</em>, but the
+    <li>Why does adding the schedule capability (chapter 6/8) go in a <em>profile bundle</em>, but the
         supervisor persona goes in a <em>preset</em>? <span class="muted">(Schedule is a service + session
         driver shared by the process — host plane. The persona is one session’s contribution — agent
         plane.)</span></li>

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Milestone grader for the Always-On Supervisor course (/root/dev/tutorial).
+"""Milestone grader for the Always-On Supervisor course.
 
 Usage:
     python3 grade.py m0            # grade one milestone (m0..m7)
-    python3 grade.py m4 --ws /root/agi-lab
+    python3 grade.py m4 --ws "$HOME/agi-lab"
     python3 grade.py all           # m0..m6 against the lab workspace
     python3 grade.py doctor        # show what the grader can see
 
@@ -32,11 +32,12 @@ import sys
 import urllib.request
 from pathlib import Path
 
-DSH_HOME = Path(os.environ.get("DSH_HOME", "/root/.dsh"))
+USER_HOME = Path.home()
+DSH_HOME = Path(os.environ.get("DSH_HOME", str(USER_HOME / ".dsh"))).expanduser()
 PRESET_DIR = DSH_HOME / ".agent-presets" / "main-agent"
 PATCH_FILE = DSH_HOME / "profiles" / "web" / "cordis.patch.yml"
-DEFAULT_WS = "/root/agi-lab"
-ACCEPTANCE_WS = "/root/agi-acceptance"
+DEFAULT_WS = str(USER_HOME / "agi-lab")
+ACCEPTANCE_WS = str(USER_HOME / "agi-acceptance")
 WEB_URL = "http://127.0.0.1:3080"
 
 # ---------------------------------------------------------------- utilities
@@ -234,7 +235,7 @@ m0 = milestone("m0", "Your lab (chapter 4)")
 def _(ws):
     out = subprocess.run(["pgrep", "-af", "dsh web"], capture_output=True, text=True)
     return PASS(out.stdout.strip().splitlines()[0][:70]) if out.stdout.strip() else \
-        FAIL("no `dsh web` process — start it in the tmux session `dsh`")
+        FAIL("no `dsh web` process — start it in a terminal (setup page)")
 
 @m0.check("web UI answers on 127.0.0.1:3080")
 def _(ws):
@@ -297,7 +298,7 @@ def _spawn_row():
 def _(ws):
     ok = (PRESET_DIR / "agent.cordis.yml").exists() and (PRESET_DIR / "preset.yml").exists()
     return PASS(str(PRESET_DIR)) if ok else \
-        FAIL("copy('standard','main-agent',...) via Creator mode first (ch6 step 1)")
+        FAIL("install the dsh-supervisor bundle and restart dsh (ch6 steps 2-3)")
 
 @m1.check("preset.yml carries display name and description")
 def _(ws):
@@ -518,7 +519,7 @@ def _(ws):
     except subprocess.TimeoutExpired:
         return WARN("dump-config timed out — check manually")
     ok = "dsh-schedule" in out.stdout
-    return PASS() if ok else FAIL("row absent from the composed tree — YAML typo? watch tmux for hmr/config-update-failed")
+    return PASS() if ok else FAIL("row absent from the composed tree — inspect the dsh web log and chapter 6 bundle install")
 
 @m3.check("schedule_create was actually called by the supervisor")
 def _(ws):

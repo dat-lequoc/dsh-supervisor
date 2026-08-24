@@ -46,9 +46,9 @@
 <ol>
   <li><strong><code>list_agents</code></strong> — is its driver still open? This is liveness only, never
       evidence of useful progress.</li>
-  <li><strong>The child’s session log on disk.</strong> The child id names its directory under
-      <code>/root/.dsh/sessions/--root-agi-lab--/</code>, and the JSONL is grep-friendly. The last few
-      <code>tool/call</code> lines answer “what is it doing right now” in one command.</li>
+  <li><strong>The child’s session log on disk.</strong> The child id names its session directory; the
+      logical JSONL is zstd-compressed by default. Its last few <code>tool/call</code> events answer
+      “what has it done?” independently of the model's claim.</li>
 </ol>
 <p>
   Encode this as an addition to the persona’s triage step — worth doing now that you’ve seen the
@@ -58,8 +58,9 @@
 <figcaption><span class="badge you">YOURS</span>persona addition (inside the scheduled check-in branch)</figcaption>
 <pre><code>  To inspect a worker cheaply: list_agents for driver liveness; then tail its
   recent activity from its session log —
-    grep '"type":"tool/call"' /root/.dsh/sessions/&lt;workspace-dir&gt;/&lt;child-id&gt;*/\
-*.jsonl | tail -20
+    LOG=$(find "$HOME/.dsh/sessions" -path '*&lt;child-id&gt;*' \
+      -name 'session.jsonl.zstd' | head -1)
+    zstd -dc "$LOG" | grep '"type":"tool/call"' | tail -20
   Compare a concrete report, artifact/log change, or completed step with the
   previous NOTES.md checkpoint. Fresh evidence: record it. No fresh evidence:
   send_message asking for a concise progress/blocker report and record the
@@ -109,14 +110,14 @@
 </p>
 <div class="box test">
   <span class="box-title">Test it live — milestone 5 acceptance: one mission, every branch</span>
-  <p><strong>Auto-grade after the mission:</strong> <code>python3 /root/dev/tests/grade.py m5</code> — grades the
+  <p><strong>Auto-grade after the mission:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m5</code> — grades the
      CHANGELOG verb coverage, the assumption, NOTES verdicts, the progress feed, the deliverable,
      worker count, and timer hygiene.</p>
-  <p><strong>Setup:</strong> fresh <code>main-agent</code> session in <code>/root/agi-lab</code>;
+  <p><strong>Setup:</strong> fresh <code>main-agent</code> session in <code>$HOME/agi-lab</code>;
   <code>config.json</code>: <code>wakeMinutes: 5</code>, <code>questionWaitMinutes: 2</code>.</p>
   <ol>
     <li><strong>Goal setup:</strong> mission — <em>“Produce SUMMARY.md describing the layout of
-        /root/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Expect
+        $HOME/src/deepseek-harness/docs — delegate the work, supervise, deliver.”</em> Expect
         <code>get_goal</code> → workspace inspection → <code>start_goal</code>/GOAL.md → same-turn work.
         <span class="muted">(Deliberately omit where SUMMARY.md should go — seed for step 4.)</span></li>
     <li><strong>Spawn + timer:</strong> expect a guarded <code>subagent</code> call with an explicit allowed model and a complete task prompt

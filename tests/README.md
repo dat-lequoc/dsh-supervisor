@@ -3,23 +3,22 @@
 One command per milestone, run after finishing each chapter's "Test it live" box:
 
 ```sh
-python3 /root/dev/tests/grade.py m1               # after chapter 6
-python3 /root/dev/tests/grade.py m4 --ws /root/agi-lab
-python3 /root/dev/tests/grade.py all              # m0–m6 in one report
-python3 /root/dev/tests/grade.py m7               # acceptance (also re-runs m2–m5
-                                                  # against /root/agi-acceptance)
-python3 /root/dev/tests/grade.py doctor           # what the grader can see
+python3 "$HOME/src/dsh-supervisor/tests/grade.py" m1
+python3 "$HOME/src/dsh-supervisor/tests/grade.py" m4 --ws "$HOME/agi-lab"
+python3 "$HOME/src/dsh-supervisor/tests/grade.py" all
+python3 "$HOME/src/dsh-supervisor/tests/grade.py" m7
+python3 "$HOME/src/dsh-supervisor/tests/grade.py" doctor
 ```
 
 | Milestone | Chapter | What it grades |
 |---|---|---|
-| m0 | 4  | dsh running, web UI up, patch file parses, workspace exists |
+| m0 | 4  | dsh running, web UI up, profile patch parses, workspace exists |
 | m1 | 6  | preset files, persona row, sole plugin-owned `subagent` row (settings-only model policy with explicit `runtime/current`, worker persona, group placement), sessions mounted |
 | m2 | 7  | `.agi/` skeleton, config keys, all protocol markers in the persona, GOAL.md, plugin-owned non-blocking `start_goal` call, JSONL validity, amendment discipline |
-| m3 | 8  | schedule rows in the patch **and** in the composed tree, `schedule_create` called, reminder delivered, an `assumed` question |
+| m3 | 8  | schedule row in the installed bundle or manual patch, `schedule_create` called, reminder delivered, an `assumed` question |
 | m4 | 9  | child sessions parented to the supervisor; spawn/steer/kill calls; `subagent-settled` and `subagent-report` messages; a child `report`; `outcome.md` |
 | m5 | 10 | CHANGELOG covers spawn+steer+kill, assumption logged, NOTES verdicts, progress feed, deliverable, ≥2 workers, timer hygiene |
-| m6 | 11 | pill defined/run in a Creator session, inspect-before-code discipline |
+| m6 | 11 | packaged Feed client, served bundle and feed route |
 | m7 | 12 | restart resume marker, amendment after completion — plus m2–m5 re-run on the acceptance workspace |
 
 ## How it works
@@ -41,7 +40,7 @@ MANUAL lines are reminders of things only a human can judge (visuals, transcript
 quality); they never affect the score. A milestone "passes" at ≥ 90%, which is also the
 process exit code (0/1), so you can chain it in scripts.
 
-Requirements: python3 with PyYAML (present on this machine), `zstd` CLI (present).
+Requirements: Python 3 with PyYAML and the `zstd` CLI (installed on the tutorial setup page).
 
 ## Honest limitations
 
@@ -56,4 +55,4 @@ Requirements: python3 with PyYAML (present on this machine), `zstd` CLI (present
   `--ws` workspace's logs read by hand if it WARNs.
 - Logs are scanned across **all** sessions in the workspace, so a check once passed
   stays passed (evidence is append-only). Use a fresh workspace (`--ws`) when you want
-  a clean slate — exactly what chapter 12 does with `/root/agi-acceptance`.
+  a clean slate — exactly what chapter 12 does with `$HOME/agi-acceptance`.

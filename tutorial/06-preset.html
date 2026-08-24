@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>6 · Milestone 1: the main-agent preset — Supervisor on DSH</title>
+<title>6 · Milestone 1: install and inspect the main-agent preset — Supervisor on DSH</title>
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
 </head>
@@ -18,230 +18,140 @@
 <main>
 <header class="chapter">
   <p class="kicker">Part II — Build · Milestone 1</p>
-  <h1>Author the <code>main-agent</code> preset</h1>
-  <p class="lede">Your supervisor is born as a preset: a copy of <code>standard</code> with its own name,
-  description, and (next chapter) persona. This chapter creates it through the roster, validates the
-  mount, adds a dedicated worker-spawning row, and starts your first session on it.</p>
+  <h1>Install and inspect <code>main-agent</code></h1>
+  <p class="lede">This is the first build action. You install the repository as a dsh profile
+  bundle, restart once, and let its non-destructive setup plugin install the exact current preset.
+  Only after the package exists do you inspect rows named <code>dsh-supervisor/…</code>.</p>
 </header>
 
-<h2>The plan for this milestone</h2>
-<ol>
-  <li>Use a Creator-mode agent to call <code>ctx.agentPresets.copy('standard', 'main-agent', …)</code>.</li>
-  <li>Fix the copy’s <code>preset.yml</code> metadata.</li>
-  <li>Replace the native spawn and control frontends with plugin-owned rows carrying the worker
-      persona, settings-only model/effort policy, and next-step steering.</li>
-  <li>Mount-validate with <code>standingKeyFor('main-agent')</code>.</li>
-  <li>Start a session on it and inspect its tool list.</li>
-</ol>
+<h2>The dependency order</h2>
+<pre><code>clone repository                         (setup page)
+  → dsh plugin add                      (package becomes profile dependency)
+    → restart dsh web                   (bundle rows compose at boot)
+      → setup plugin installs preset    (main-agent appears)
+        → preset subpath rows resolve   (goal/control/spawn mount)
+          → start and test a session</code></pre>
+<p>
+  Reversing the middle two steps produces the exact error this chapter is designed to prevent:
+  <code>Cannot find package dsh-supervisor/control</code> or
+  <code>dsh-supervisor/spawn</code>. A YAML row is not an npm installation instruction; its package must
+  already resolve from the profile.
+</p>
+
+<h2>Step 1 — confirm the clean preflight</h2>
+<pre><code>test -f "$HOME/src/dsh-supervisor/package.json"
+test -f "$HOME/src/dsh-supervisor/agent-presets/main-agent/agent.cordis.yml"
+test -f "$HOME/.dsh/profiles/web/package.json"
+
+# On the clean course path this should print no supervisor dependency yet:
+grep -n 'dsh-supervisor' "$HOME/.dsh/profiles/web/package.json" || true</code></pre>
+<p>
+  If <code>$HOME/.dsh/.agent-presets/main-agent</code> already exists on a machine that is not actually
+  clean, move it aside before installing if you want the package's current preset. The installer never
+  clobbers a user-owned preset in its default <code>syncPreset: if-absent</code> mode.
+</p>
+
+<h2>Step 2 — install the supervisor bundle</h2>
+<pre><code>cd "$HOME/src/dsh-supervisor"
+dsh plugin --profile web add "file:$PWD"</code></pre>
+<p>
+  This one command updates the profile dependency and ordered bundle list. Do not run
+  <code>npm install</code> inside the dsh profile and do not hand-edit its <code>package.json</code>.
+  The package manager may print peer-dependency warnings because Harness supplies those peers from
+  its own installation; use the installation gate below to distinguish a harmless warning from failure.
+</p>
+<p>
+  Return to the terminal running <code>dsh web</code>, press <kbd>Ctrl-C</kbd>, wait for shutdown, then run:
+</p>
+<pre><code>dsh web</code></pre>
+<p>
+  The restart is required because bundle lists compose at boot. During boot, this package mounts its
+  settings/feed host plugin and the native schedule service, then copies the packaged
+  <code>main-agent</code> directory into <code>$HOME/.dsh/.agent-presets/</code> because it is absent.
+</p>
+
+<h2>Step 3 — prove package, bundle, and preset all exist</h2>
+<div class="box test">
+  <span class="box-title">Installation gate</span>
+  <pre><code>grep -n 'dsh-supervisor' "$HOME/.dsh/profiles/web/package.json"
+dsh --profile web --dump-config | grep -E 'agi-schedule|agi-supervisor-setup'
+test -f "$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml"
+test -f "$HOME/.dsh/.agent-presets/main-agent/preset.yml"</code></pre>
+  <p>All four commands must succeed. In the browser, Settings → Plugins must also contain
+  <strong>Supervisor</strong>. Stop here if any check fails.</p>
+</div>
+
+<h2>Step 4 — inspect the rows the package installed</h2>
+<p>
+  Open <code>$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml</code> read-only. The important policy
+  substitutions are already complete:
+</p>
+<figure class="code">
+<figcaption><span class="badge cite">CITED</span>installed preset — selected rows, abridged</figcaption>
+<pre><code># Native goal domain, supervisor-owned model frontend:
+- id: tool-goal
+  name: dsh-supervisor/goal
+
+# Inside the delegation group's config list:
+- id: tool-subagent-control
+  name: dsh-supervisor/control
+
+- id: tool-subagent-list-agents
+  name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+- id: tool-subagent
+  name: dsh-supervisor/spawn
+  config:
+    provider: spawn
+    toolName: subagent
+    persona: |
+      # exact worker protocol continues here</code></pre>
+</figure>
+<p>Now verify the bypasses are absent:</p>
+<pre><code>grep -nE 'subagent_fork|@deepseek-ai/dsh-tool-goal' \
+  "$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml" || true</code></pre>
+<p>
+  The command should print nothing. The package exports that make the three custom names resolvable
+  are visible in <code>$HOME/src/dsh-supervisor/package.json</code> as <code>./goal</code>,
+  <code>./control</code>, and <code>./spawn</code>. Their lifecycle backends remain native; these frontends
+  add grounded goals, next-step steering, and settings-owned model/effort policy.
+</p>
+
+<h2>Step 5 — mount a real session</h2>
+<p>
+  Web UI → new session → workspace <code>$HOME/agi-lab</code> → preset
+  <strong>Main Agent (Supervisor)</strong>. Start it and ask:
+</p>
+<pre><code>List every tool you can currently call, names only, grouped by theme.</code></pre>
+<div class="box test">
+  <span class="box-title">Milestone 1 acceptance</span>
+  <p><strong>Auto-grade:</strong>
+     <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m1 --ws $HOME/agi-lab</code></p>
+  <ol>
+    <li>The session starts with no <code>Cannot find package</code> mount error.</li>
+    <li>Tools include <code>subagent</code>, <code>send_message</code>, <code>interrupt_agent</code>,
+        <code>list_agents</code>, <code>get_goal</code>, <code>start_goal</code>, and
+        <code>update_goal</code>.</li>
+    <li><code>subagent_fork</code> and native <code>create_goal</code> are absent.</li>
+    <li>A second session on the same preset also starts, proving no preset service leaked into the
+        process-global realm.</li>
+  </ol>
+</div>
 
 <div class="box why">
-  <span class="box-title">Why the plugin owns the one <code>subagent</code> frontend</span>
+  <span class="box-title">Where preset authoring still fits</span>
   <p>
-    The shipped frontend is excellent at lifecycle management, but its model-facing schema has no
-    model argument. Its child therefore inherits the parent agent's creation-time route, which can be
-    stale after live model selection changes. That also bypasses the Supervisor card's allowlist.
-    <code>dsh-supervisor/spawn</code> keeps the same native <code>spawn</code> backend and continuable child
-    sessions, while requiring an explicit choice from live settings and forwarding the resolved route
-    through native <code>SubagentRequest.agentOptions</code>. Fixed choices are exact provider/model ids;
-    <code>runtime/current</code> safely follows the route captured for the calling turn. Worker reasoning
-    effort is a separate live policy and is validated against that exact route. The plugin is mounted as <code>subagent</code>, replacing
-    — not sitting beside — the native spawn row. The protocol persona remains per row; the task role
-    (“browser operator”, “researcher”) travels in the prompt's <code># Role</code> section.
-  </p>
-</div>
-
-<h2>Step 1 — copy the preset through the roster</h2>
-<p>
-  Open a Creator-mode session (workspace <code>/root/agi-lab</code>, preset <code>cordis</code>) and give it
-  this mission. It knows the drill from chapter 5 — it will define a small probe plugin that injects
-  <code>agentPresets</code> and registers itself tools to call the roster with:
-</p>
-<figure class="code">
-<figcaption><span class="badge you">YOURS</span>prompt to the Creator-mode agent</figcaption>
-<pre><code>Create a new agent preset for me:
-
-1. Query the exact 'agentPresets' service contract first
-   (cordis_inspect_query, host, Service.listService, service: "agentPresets").
-2. Through a temporary dynamic plugin, call:
-     agentPresets.copy('standard', 'main-agent', 'Main Agent (Supervisor)')
-   then agentPresets.resolve('main-agent') and give me the created path.
-3. Undefine the temporary plugin when done.
-
-Do NOT edit any shipped preset. If 'main-agent' already exists, stop and
-tell me.</code></pre>
-</figure>
-<p>What <code>copy()</code> guarantees you (from its source, so you can trust it):</p>
-<figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/preset/agent-presets/src/index.ts (copy(), lines 374–392, abridged)</figcaption>
-<pre><code>/**
- * Copy a whole preset directory into the writable user root: composition,
- * metadata, skill directories, assets. ...
- * @throws when the source is unknown, the id is unusable or already taken,
- * or the deployment configures no writable root.
- */
-async copy(from: string, id: string, name?: string): Promise&lt;void&gt; {
-  // The roster check refuses ids any root supplies — shipped ones included ...
-}</code></pre>
-</figure>
-<p>
-  Expected result: a new directory <code>/root/.dsh/.agent-presets/main-agent/</code> containing
-  <code>agent.cordis.yml</code> (identical to <code>standard</code>’s for now) and <code>preset.yml</code>.
-  Verify from your terminal:
-</p>
-<pre><code>ls /root/.dsh/.agent-presets/main-agent/
-# expect: agent.cordis.yml  preset.yml   (possibly skills/ if standard ships any)</code></pre>
-
-<h2>Step 2 — the display metadata</h2>
-<p>
-  Edit <code>/root/.dsh/.agent-presets/main-agent/preset.yml</code> (this file is yours — a locally
-  authored preset is explicitly “yours to create, edit, and delete”):
-</p>
-<figure class="code">
-<figcaption><span class="badge you">YOURS</span>/root/.dsh/.agent-presets/main-agent/preset.yml</figcaption>
-<pre><code>name: Main Agent (Supervisor)
-description: >-
-  Always-on supervisor: locks a goal with you, then loops — spawn a dev
-  subagent, sleep, wake on settle/report/timer, inspect, steer or kill.
-  All durable state in the workspace's .agi/ directory.</code></pre>
-</figure>
-<p class="muted">Without this, every picker shows the bare directory name — the skill calls it out explicitly.</p>
-
-<h2>Step 3 — add the worker-spawning row</h2>
-<p>
-  Open <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code>. Find the <code>delegation</code>
-  group (you read it in chapter 2 — it already carries <code>tool-subagent-control</code>,
-  <code>tool-subagent</code>, and friends). Remove the shipped control row and native
-  <code>provider: spawn</code> frontend, then
-  <strong>inside that same group’s <code>config</code> list</strong>, replace the control row and spawn row:
-</p>
-<figure class="code">
-<figcaption><span class="badge you">YOURS</span>add inside the delegation group of main-agent/agent.cordis.yml</figcaption>
-<pre><code>    - id: tool-subagent-control
-      name: dsh-supervisor/control
-
-    - id: tool-subagent
-      name: dsh-supervisor/spawn
-      config:
-        provider: spawn
-        toolName: subagent
-        persona: |
-          You are a Dev Agent: a focused worker under an always-on supervisor.
-          Your task arrives as your first message and is complete and
-          self-contained; stay strictly inside its scope.
-          - You have no direct user-question channel. The report tool is your
-            ONLY channel to the supervisor. If blocked on information only the
-            supervisor or user has, call report with the precise question,
-            then stop until the answer arrives.
-          - On completion: write outcome.md (what you did, what you verified,
-            what remains) at the path your task names, then report a
-            one-paragraph summary.
-          - Supervisor messages arriving mid-task join at the next model step:
-            comply immediately; do not finish the previous plan first.
-          - Do not spawn your own subagents unless your task allows it.</code></pre>
-</figure>
-<p>Why each field, with the receipts:</p>
-<ul>
-  <li><code>provider: spawn</code> — the in-process backend that creates a <em>fresh</em> child (no parent
-      history). Registered host-side by <code>subagent-spawn-in-process</code>
-      (<code>packages/bundle/base/cordis.patch.yml</code>, lines 295–298).</li>
-  <li><code>toolName: subagent</code> — the canonical name now refers only to the plugin-owned guarded
-      frontend. Do not keep the shipped spawn row beside it.</li>
-  <li><code>dsh-supervisor/control</code> keeps native authority, idle wake, and cold resume, but routes a
-      message to a running direct child through <code>Agent.steer()</code> so it joins at the next step.</li>
-  <li>The plugin always uses continuable mode — children are durable sessions you can
-      <code>send_message</code> / <code>interrupt_agent</code>, and whose settling wakes the parent. (Chapter 9
-      is entirely about this.)</li>
-  <li><code>persona</code> — registered as the <em>child’s</em> persona, shadowing the deployment default for
-      that child alone. This is the documented per-request persona path: “in-process backends …
-      register it as a scoped <code>deployment:persona</code> section on the child”
-      (<code>docs/subsystems/subagent.md</code>, <code>SubagentStartRequest.persona</code>).</li>
-</ul>
-<p>
-  Choose worker models and worker effort in Settings → Plugins → Supervisor. A fresh install enables
-  <strong>Current runtime model</strong> and <strong>same effort as current main turn</strong>
-  (<code>runtime/current</code>) for each policy. Fixed routes advertise their native modalities and
-  selectable efforts. <code>provider/default</code> omits an explicit worker effort. Any fixed or inherited
-  effort unsupported by the selected route is rejected before provider I/O. The generated
-  <code>subagent.model</code> enum contains only enabled choices, and an empty model list disables spawning.
-</p>
-<div class="box warn">
-  <span class="box-title">Do not add <code>agi-*</code> service rows here</span>
-  <p>
-    Everything else this build needs is host-plane (schedule, chapter 8) or already present. A service
-    row loose in a preset is the classic mount rejection from chapters 2–3. The delegation group you
-    are editing already has the right realm (<code>isolate: workflowEngine</code>) for what it owns.
-  </p>
-</div>
-
-<h2>Step 4 — validate the mount</h2>
-<p>
-  Back in your Creator-mode session (same probe-plugin trick — or just ask it; it remembers the
-  pattern):
-</p>
-<figure class="code">
-<figcaption><span class="badge you">YOURS</span>prompt to the Creator-mode agent</figcaption>
-<pre><code>Mount-validate my preset: call agentPresets.standingKeyFor('main-agent')
-through a temporary plugin and report the outcome verbatim. If it throws,
-give me the full error text.</code></pre>
-</figure>
-<p><code>standingKeyFor</code> is the real check — it composes the preset’s subtree exactly as a session start would. The four failure shapes it can name, and what each means:</p>
-<table>
-  <tr><th>Rejection</th><th>Meaning</th><th>Fix</th></tr>
-  <tr><td><code>Cannot find package …</code></td><td>A row names a package this deployment doesn’t have.</td><td>Typo in <code>name:</code>, or the plugin needs installing (chapter 13’s topic).</td></tr>
-  <tr><td><code>invalid config: $.&lt;field&gt; …</code></td><td>Row config fails the plugin’s schema.</td><td>Fix the named field. (E.g. a typo in <code>backgroundMode</code>.)</td></tr>
-  <tr><td><code>N row(s) did not activate: waiting for &lt;service&gt;</code></td><td>A consumer can’t resolve a service.</td><td>You put a consumer inside the wrong realm, or the host lacks the service.</td></tr>
-  <tr><td><code>published process-global service(s) […]</code> / <code>service "x" has been registered</code></td><td>The realm rule violation.</td><td>Wrap provider+consumers in an <code>isolate</code> group — or the row belongs host-side.</td></tr>
-</table>
-<p class="muted">
-  Source for the list: <code>editing-cordis-compositions</code> skill, “Verifying a change”. Note its other
-  warning: the roster’s <code>broken</code> flag is only a file-shape check — <em>not</em> validation.
-</p>
-
-<h2>Step 5 — first session on your preset</h2>
-<p>
-  Web UI → new session → workspace <code>/root/agi-lab</code> → preset picker now shows
-  <strong>Main Agent (Supervisor)</strong> under your custom presets. Start it, then ask it:
-</p>
-<pre><code>"List every tool you can currently call, names only, grouped by theme."</code></pre>
-
-<div class="box test">
-  <span class="box-title">Test it live — milestone 1 acceptance</span>
-  <p><strong>Auto-grade:</strong> <code>python3 /root/dev/tests/grade.py m1</code> — checks the preset files,
-     the guarded <code>subagent</code> row (fields, worker persona, group placement), absence of the native
-     fallback row, and that sessions mounted.</p>
-  <ol>
-    <li><code>standingKeyFor('main-agent')</code> returned clean (“mounted OK” or equivalent — no thrown error).</li>
-    <li>The preset appears in the picker with your display name and description.</li>
-    <li>The new session’s tool list contains, at minimum:
-        <code>subagent</code>, <code>send_message</code>, <code>interrupt_agent</code>,
-        <code>list_agents</code>, <code>goal</code>-related tools, <code>todo_write</code>, plus the ordinary
-        bash/fs suite.</li>
-    <li>Negative check: a <em>second</em> session on <code>main-agent</code> starts cleanly too (proves you
-        didn’t introduce a realm collision).</li>
-  </ol>
-  <p><strong>If <code>subagent</code> is missing:</strong> first confirm at least one Worker model is saved in
-  Settings → Plugins → Supervisor. Then check that the replacement row is inside the delegation group's
-  <code>config:</code> list (indentation!) and re-run step 4.</p>
-</div>
-
-<div class="box ts">
-  <span class="box-title">TypeScript corner · reading the row’s config schema</span>
-  <p>
-    The replacement plugin declares its row <code>Config</code> with Schemastery and generates a separate
-    model-facing schema with <code>defineTool</code>. This distinction is important: row config chooses the
-    backend and persona, while live Settings determine the required model enum and reasoning-effort
-    policy. For <code>runtime/current</code>, execution reads the calling request's logged route and explicit
-    effort—not the agent's creation-time defaults. The plugin reserves the continuable child's id and
-    applies the effort to its first request; the resulting <code>request/header</code> makes warm and cold
-    continuation durable. Invalid row fields fail during composition; removed or incompatible choices
-    fail again at execution time.
+    Chapters 2–5 taught enough Cordis and roster mechanics to author a variant. For the primary course,
+    using the packaged preset is the reproducible build: it cannot drift from the plugin version that
+    supplies its rows. If you create a variant later, copy <code>main-agent</code> to a new id through the
+    roster, edit that user copy, and mount-validate it with <code>standingKeyFor</code>.
   </p>
 </div>
 
 <h2>What exists now</h2>
 <p>
-  A supervisor-shaped agent: right tools, right delegation row, no brain yet — its persona is still
-  <code>standard</code>’s generic coding text. Chapter 7 writes the brain.
+  A fully mountable supervisor preset, its package-owned policy frontends, live settings, Feed routes,
+  and schedule service. Chapter 7 reads and tests the installed persona and durable state contract.
 </p>
 
 <nav class="pager">

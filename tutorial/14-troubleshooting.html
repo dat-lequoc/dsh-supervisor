@@ -28,9 +28,9 @@
 <h3>Preset problems (chapters 6–7)</h3>
 <table>
   <tr><th>Symptom</th><th>Likely cause → fix</th></tr>
-  <tr><td>Preset missing from the picker</td><td>Directory not in <code>/root/.dsh/.agent-presets/</code>, or <code>agent.cordis.yml</code> misnamed. <code>agentPresets.list()</code> (via Creator mode) shows what the roster actually sees, with real paths.</td></tr>
+  <tr><td>Preset missing from the picker</td><td>Directory not in <code>$HOME/.dsh/.agent-presets/</code>, or <code>agent.cordis.yml</code> misnamed. <code>agentPresets.list()</code> (via Creator mode) shows what the roster actually sees, with real paths.</td></tr>
   <tr><td>Picker shows the raw id, no description</td><td><code>preset.yml</code> missing/empty — chapter 6 step 2.</td></tr>
-  <tr><td><code>standingKeyFor</code>: <code>invalid config: $.persona …</code> or similar</td><td>YAML indentation under the named row — usually the <code>persona: |</code> block. Validate the file: <code>python3 -c "import yaml,sys; yaml.safe_load(open('/root/.dsh/.agent-presets/main-agent/agent.cordis.yml'))"</code></td></tr>
+  <tr><td><code>standingKeyFor</code>: <code>invalid config: $.persona …</code> or similar</td><td>YAML indentation under the named row — usually the <code>persona: |</code> block. Validate the file: <code>python3 -c "import yaml,sys; yaml.safe_load(open('$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml'))"</code></td></tr>
   <tr><td><code>N row(s) did not activate: waiting for &lt;service&gt;</code></td><td>Consumer row inside the wrong realm, or a host service that genuinely isn’t mounted (e.g. you referenced schedule before chapter 8).</td></tr>
   <tr><td><code>published process-global service(s) […]</code></td><td>You added a provider row loose in the preset. Wrap provider + consumers in one <code>isolate</code> group, or move it host-side. (Chapters 2–3.)</td></tr>
   <tr><td>Second session on the preset fails; first was fine</td><td>Same realm bug — the collision fires on the second mount. Same fix.</td></tr>
@@ -41,10 +41,10 @@
 <h3>Profile-patch problems (chapters 8, 13)</h3>
 <table>
   <tr><th>Symptom</th><th>Likely cause → fix</th></tr>
-  <tr><td>Edited the patch; nothing changed</td><td>Watch the tmux log for <code>hmr/config-update-failed</code> — parse error keeps the last good tree. Duplicate row ids are fatal; an “empty” file must be <code>[]</code>.</td></tr>
+  <tr><td>Edited the patch; nothing changed</td><td>Watch the <code>dsh web</code> log for <code>hmr/config-update-failed</code> — parse error keeps the last good tree. Duplicate row ids are fatal; an “empty” file must be <code>[]</code>.</td></tr>
   <tr><td><code>schedule_create</code> still unknown after chapter 8</td><td>Row names typo’d, or you edited the wrong file. <code>dsh --profile web --dump-config | grep -n schedule</code> settles it.</td></tr>
   <tr><td>Bundle plugin (ch. 13) never mounts</td><td>Bundle list is boot-time — did you restart once? Is the package listed in <em>both</em> <code>dependencies</code> and <code>dsh.profile.bundles</code>? Does its manifest carry <code>dsh.bundle.patch</code>?</td></tr>
-  <tr><td>Whole tree fails at boot after your change</td><td>Restore the backup: <code>cp /root/.dsh/profiles/web/cordis.patch.yml{.bak,}</code> and restart. This is why chapter 4 made you take it.</td></tr>
+  <tr><td>Whole tree fails at boot after your change</td><td>Restore the backup: <code>cp $HOME/.dsh/profiles/web/cordis.patch.yml{.bak,}</code> and restart. This is why chapter 4 made you take it.</td></tr>
 </table>
 
 <h3>Dynamic-plugin problems (chapter 5 and chapter 11's historical exercise)</h3>
@@ -99,7 +99,7 @@
 </table>
 
 <h2>The documentation map</h2>
-<p>All under <code>/root/deepseek-harness/</code>. Ordered by when they will next matter:</p>
+<p>All under <code>$HOME/src/deepseek-harness/</code>. Ordered by when they will next matter:</p>
 <table>
   <tr><th>Read</th><th>When</th></tr>
   <tr><td><code>docs/cordis-primer.md</code> → <code>docs/cordis-tutorial/</code></td><td>Consolidate chapter 2; the tutorial is hands-on.</td></tr>

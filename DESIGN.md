@@ -377,7 +377,7 @@ Entries above are the historical record; where a §14 simplification conflicts w
 
 ## 13. Amendments after harness verification
 
-Checked against the DSH checkout (`/root/deepseek-harness`, dsh 0.1.0-rc.7); exact
+Checked against the DSH checkout (`$HOME/src/deepseek-harness`, most recently dsh 0.1.1-rc.2); exact
 source references in `IMPLEMENTATION_PLAN.md` §1. A1–A5 delete planned custom machinery
 in favor of shipped native mechanisms; A6 rebuilds one piece custom on purpose, for
 personalization.
@@ -440,8 +440,8 @@ S3), the N entry wins.
 
 Optional extensions (ext): when native stops being enough, the old custom pieces are
 built as ONE out-of-tree package installed into the profile as a `file:` dependency +
-bundle (`dsh.bundle.patch` manifest field), exactly like the already-installed
-`@dsh-external/dsh-subagent-antigravity` (`/root/dsh-subagent-agy`). Corrected
+bundle (`dsh.bundle.patch` manifest field), using this repository's buildless package as the
+installed template; no unrelated third-party checkout is assumed. Corrected
 skeletons for delay / trace / wait / state-route live in tutorial chapter 13.
 
 Packaging (post-N6 refinement): this repo is itself such a bundle (`dsh-supervisor`).

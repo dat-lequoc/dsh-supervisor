@@ -12,7 +12,7 @@
   <a href="index.html">⌂ Contents</a>
   <span class="crumb">Always-On Supervisor on DSH</span>
   <span class="spacer"></span>
-  <a href="01-big-picture.html">Start →</a>
+  <a href="00-setup.html">Start →</a>
 </nav>
 <main>
 <header class="chapter">
@@ -28,7 +28,7 @@
 
 <h2>The philosophy of this course</h2>
 <p>
-  Your design documents (<code>/root/dev/DESIGN.md</code> and <code>/root/dev/IMPLEMENTATION_PLAN.md</code>)
+  Your design documents (<code>$HOME/src/dsh-supervisor/DESIGN.md</code> and <code>$HOME/src/dsh-supervisor/IMPLEMENTATION_PLAN.md</code>)
   describe a supervisor built from a preset plus five custom plugins. This course deliberately takes a
   <strong>native-first</strong> path instead: we reuse and configure what the harness already ships, and we
   keep the native lifecycle machinery and add narrow policy frontends only where the shipped tools do
@@ -47,7 +47,7 @@
   <tr><td>Wake on a timer (patience / periodic check)</td><td><code>schedule_create</code> (one schedule-service config row)</td><td>No — config only</td></tr>
   <tr><td>Track the locked goal</td><td>Native goal domain and UI, behind a grounded, non-blocking frontend</td><td>Thin policy frontend</td></tr>
   <tr><td>Inspect what a worker did</td><td>Children are ordinary sessions in the web GUI, and ordinary JSONL files on disk</td><td>No</td></tr>
-  <tr><td>The supervisor personality & protocol</td><td>An <em>agent preset</em> — a YAML file you author</td><td>No code — YAML + prose</td></tr>
+  <tr><td>The supervisor personality & protocol</td><td>An installed, user-owned <em>agent preset</em> packaged with this repository</td><td>YAML + prose</td></tr>
   <tr><td>Durable state (goal, notes, questions, changelog)</td><td>Plain files in <code>.agi/</code>, written with the shell/fs tools every agent has</td><td>No — convention only</td></tr>
   <tr><td>Glanceable run UI and real stop</td><td>Native view slot/projections plus the bundled Feed route and Full stop maintenance action</td><td>Bundled client + host route</td></tr>
   <tr><td>Extra trace files or a no-argument wait tool</td><td>—</td><td>Optional, chapter 13</td></tr>
@@ -64,17 +64,15 @@
     Custom machinery is code you must debug <em>while also</em> debugging your agent’s behavior. When the
     spawn/steer/kill/report loop is the harness’s own, a failure can only be in your prompt or your
     protocol — a much smaller search space. You can always add the custom extras later
-    (chapter 13 shows exactly how, using a real out-of-tree plugin already installed on this machine
-    as the template).
+    (chapter 13 shows exactly how, using this repository's installed bundle as the template).
   </p>
 </div>
 
-<h2>What you need</h2>
+<h2>Start from a clean PC</h2>
 <ul>
-  <li>This machine, as it is: a <code>dsh web</code> already runs in the tmux session <code>dsh</code>, serving
-      <a href="http://127.0.0.1:3080">http://127.0.0.1:3080</a>. Chapter 4 tours it.</li>
-  <li>The harness source checkout at <code>/root/deepseek-harness</code> (version 0.1.0-rc.7) — we read it
-      constantly; we never modify it.</li>
+  <li>No Harness process, repository clone, preset, workspace, or supervisor plugin is assumed.</li>
+  <li><a href="00-setup.html">Required setup</a> installs dsh, clones both repositories at the paths used
+      throughout the course, configures a model, starts the web UI, and creates the lab workspace.</li>
   <li>No TypeScript experience. Chapters carry <span style="color:var(--box-ts);font-weight:650">TypeScript corner</span>
       boxes that teach exactly the syntax you are looking at, when you are looking at it.</li>
 </ul>
@@ -83,7 +81,7 @@
 <ul>
   <li><strong>Narrative first</strong> — concepts in prose, then the real code.</li>
   <li><strong>Cited code</strong> — every claim about the harness points at a file (and usually lines) in
-      <code>/root/deepseek-harness</code> so you can verify it yourself. Code blocks are labeled
+      <code>$HOME/src/deepseek-harness</code> so you can verify it yourself. Code blocks are labeled
       <span class="badge cite">CITED</span>
       (exists in the repo — go read it) or
       <span class="badge you">YOURS</span>
@@ -91,10 +89,10 @@
   <li><strong>Test it live</strong> — a green box at the end of every milestone with the exact steps and the
       expected observation. Do not continue until it passes; later chapters assume it.</li>
   <li><strong>Auto-grading</strong> — every milestone box names its grader:
-      <code>python3 /root/dev/tests/grade.py m0…m7</code> scores the durable evidence (preset files, patch
+      <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m0…m7</code> scores the durable evidence (preset files, patch
       rows, <code>.agi/</code> state, session event logs) and exits 0/1 at the 90% bar. <code>all</code> runs
       m0–m6 in one report; <code>doctor</code> shows what it can see. Details:
-      <code>/root/dev/tests/README.md</code>.</li>
+      <code>$HOME/src/dsh-supervisor/tests/README.md</code>.</li>
 </ul>
 
 <p class="part-label">Part I — Understand the machine (chapters 1–5)</p>
@@ -106,17 +104,17 @@
   <li><a href="03-harness.html">Anatomy of the harness</a><span class="tag">concepts</span>
       <span class="desc">Profiles, bundles, patch layers, the two planes (host vs. preset), the session log, and the turn flow. Where every kind of change belongs.</span></li>
   <li><a href="04-lab.html">Your lab</a><span class="tag">hands-on</span>
-      <span class="desc">Tour the running deployment: tmux, <code>$DSH_HOME</code>, sessions on disk, the web UI, and the safety rules that keep you from bricking it.</span></li>
+      <span class="desc">Tour the clean deployment you started: process, <code>$DSH_HOME</code>, sessions on disk, web UI, and safety rules.</span></li>
   <li><a href="05-creator-mode.html">Creator mode and the Cordis toolset</a><span class="tag">testable</span>
       <span class="desc">The self-referential preset: seven <code>cordis_*</code> tools that inspect and extend the live runtime. You define, run, and remove your first dynamic plugin.</span></li>
 </ol>
 
 <p class="part-label">Part II — Build the supervisor (chapters 6–12)</p>
 <ol class="toc" start="6">
-  <li><a href="06-preset.html">Milestone 1 — Author the <code>main-agent</code> preset</a><span class="tag">testable</span>
-      <span class="desc">Copy <code>standard</code>, name it, validate the mount, start a session on it. Your supervisor exists.</span></li>
+  <li><a href="06-preset.html">Milestone 1 — Install and inspect <code>main-agent</code></a><span class="tag">testable</span>
+      <span class="desc">Install the bundle before its package rows are referenced, restart, verify the generated preset, and mount a real session.</span></li>
   <li><a href="07-brain.html">Milestone 2 — The brain: persona, protocol, and the <code>.agi/</code> state contract</a><span class="tag">testable</span>
-      <span class="desc">Write the supervisor persona and test workspace-grounded, non-blocking goal setup over the native goal service.</span></li>
+      <span class="desc">Read the exact installed persona/state contract and test workspace-grounded, non-blocking goal setup over the native goal service.</span></li>
   <li><a href="08-schedule.html">Milestone 3 — Time: the schedule overlay</a><span class="tag">testable</span>
       <span class="desc">One schedule-service row gives sessions <code>schedule_create</code>. Patience timers and periodic wake-ups with zero custom timer code.</span></li>
   <li><a href="09-delegation.html">Milestone 4 — Workers: spawn, steer, kill, report</a><span class="tag">testable</span>
@@ -132,7 +130,7 @@
 <p class="part-label">Part III — Beyond native (chapters 13–14)</p>
 <ol class="toc" start="13">
   <li><a href="13-extensions.html">Optional extensions: real host plugins</a><span class="tag">advanced</span>
-      <span class="desc">When native isn’t enough: a <code>wait_for_agents</code> tool, a trace tap, a state route — packaged as an out-of-tree plugin and installed into your profile, following a real installed example.</span></li>
+      <span class="desc">When native isn’t enough: a <code>wait_for_agents</code> tool, trace tap, or state route packaged like the supervisor bundle you installed in chapter 6.</span></li>
   <li><a href="14-troubleshooting.html">Troubleshooting & reference</a><span class="tag">reference</span>
       <span class="desc">The failure catalog, a glossary, and the map of harness docs worth reading next.</span></li>
 </ol>
@@ -149,7 +147,7 @@
 </p>
 
 <nav class="pager">
-  <a class="next" href="01-big-picture.html">Chapter 1 — The big picture →</a>
+  <a class="next" href="00-setup.html">Required setup — Start on a clean PC →</a>
 </nav>
 </main>
 </body>

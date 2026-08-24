@@ -19,9 +19,9 @@
 <header class="chapter">
   <p class="kicker">Part II — Build · Milestone 2</p>
   <h1>The brain: persona, protocol, and the <code>.agi/</code> contract</h1>
-  <p class="lede">A supervisor is mostly prose. This chapter writes the persona that turns your
-  preset into the Main Agent — non-blocking goal setup, the question protocol, the file discipline —
-  and tests the supervisor's workspace-grounded frontend over the native goal domain.</p>
+  <p class="lede">A supervisor is mostly prose. This chapter reads the package-installed persona —
+  non-blocking goal setup, the question protocol, and file discipline — then tests the supervisor's
+  workspace-grounded frontend over the native goal domain.</p>
 </header>
 
 <h2>Where a persona lives and how it works</h2>
@@ -30,17 +30,17 @@
   sessions on this preset. It supports two template variables resolved per agent:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml (the copied persona row — currently standard’s)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml (installed persona opening)</figcaption>
 <pre><code>- id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: &gt;-
-      You are a coding agent powered by the {{model}} model. Your working
-      directory is {{cwd}}.</code></pre>
+    text: |-
+      You are the Main Agent: an always-on supervisor powered by {{model}},
+      working in {{cwd}}. You supervise dev subagents. ...</code></pre>
 </figure>
 <p>
-  You are about to replace <code>text</code> with roughly a page of protocol. Two writing rules first,
-  because persona text is engineering, not vibes:
+  The bundle installed the full protocol. Read it before the abridged map below. Two writing rules
+  explain how to evaluate it, because persona text is engineering, not vibes:
 </p>
 <ul>
   <li><strong>Don’t restate what infrastructure guarantees.</strong> The settle notice arrives whether or not
@@ -51,21 +51,15 @@
 </ul>
 
 <h2>The state contract: <code>.agi/</code></h2>
-<p>Create the skeleton once in your lab workspace (the supervisor maintains it afterwards):</p>
+<p>The setup page created the skeleton from the repository template. Verify it; do not overwrite the
+user-owned config while following later agent prompts:</p>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>one-time scaffold</figcaption>
-<pre><code>mkdir -p /root/agi-lab/.agi/subagents
-cd /root/agi-lab/.agi
-
-cat &gt; config.json &lt;&lt;'EOF'
-{
-  "wakeMinutes": 5,
-  "questionWaitMinutes": 5
-}
-EOF
-
-touch NOTES.md progress.jsonl questions.jsonl CHANGELOG.jsonl
-python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</code></pre>
+<figcaption><span class="badge you">YOURS</span>state-contract check</figcaption>
+<pre><code>cd "$HOME/agi-lab/.agi"
+python3 -c "import json; print(json.load(open('config.json')))"
+test -d subagents
+test -f NOTES.md &amp;&amp; test -f progress.jsonl \
+  &amp;&amp; test -f questions.jsonl &amp;&amp; test -f CHANGELOG.jsonl</code></pre>
 </figure>
 <p>File semantics — this is the contract the persona will enforce:</p>
 <table>
@@ -83,13 +77,13 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 
 <h2>The persona</h2>
 <p>
-  Replace the persona row’s <code>text</code> in
-  <code>/root/.dsh/.agent-presets/main-agent/agent.cordis.yml</code> with this. It is adapted from your
-  plan’s M5 draft, updated for the native-first decisions (no brief files, no wake ritual, native
-  tool names):
+  Read the exact installed text in
+  <code>$HOME/.dsh/.agent-presets/main-agent/agent.cordis.yml</code>. The map below is intentionally
+  abridged for explanation; do not paste it over the installed persona. The packaged file is the
+  executable authority and includes the complete persistence, recovery, timer, and question rules.
 </p>
 <figure class="code">
-<figcaption><span class="badge you">YOURS</span>the supervisor persona (persona row → config → text)</figcaption>
+<figcaption><span class="badge cite">CITED</span>the installed supervisor persona (abridged map)</figcaption>
 <pre><code>text: |-
   You are the Main Agent: an always-on supervisor powered by {{model}},
   working in {{cwd}}. You supervise dev subagents. You do not implement
@@ -143,10 +137,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
      Scope in-out / Context pointers / Protocol / Constraints). Tell the
      worker to write outcome.md under {{cwd}}/.agi/subagents/&lt;its own
      session id&gt;/ when done. Log the spawn, selected model, advertised
-     modalities, and effective effort shown by the tool result. Worker effort
-     is user-owned live meta-config: same as this turn, provider default, or
-     one exact catalog-advertised id; never invent a different value.
-     runtime/current explicitly follows the route captured for this turn; it
+     modalities, and effective effort shown by the tool result. Each allowed
+     model row owns its user-selected effort; the tool exposes no effort
+     argument and never inherits the main turn's effort.
+     runtime/current explicitly follows only the model route captured for this turn; it
      is enabled on a fresh install. There is no implicit default inheritance;
      an empty allowlist disables spawning.
   3. Sleep by ending your turn. You will wake when a worker settles or
@@ -189,19 +183,16 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 
 <div class="box ts">
   <span class="box-title">TypeScript corner · YAML multiline strings</span>
-  <p>
-    <code>|-</code> starts a <em>literal block</em>: newlines are preserved, the trailing newline is
-    stripped, and everything must be indented deeper than <code>text:</code>. The copied file used
-    <code>&gt;-</code> (folded — newlines become spaces); for a structured protocol you want
-    <code>|-</code>. Indentation errors here are the most common way to break the file — re-run
-    validation after saving.
-  </p>
+  <p><code>|-</code> starts a <em>literal block</em>: newlines are preserved and the trailing newline is
+  stripped. This is why the installed structured protocol remains readable. If you later edit a copied
+  variant, every line must stay indented deeper than <code>text:</code>.</p>
 </div>
 
 <h2>The non-blocking frontend over the native goal domain</h2>
 <p>
-  The native goal <em>service</em>, projection, and session driver remain host-side. The preset disables
-  only the inferred-intent <code>@deepseek-ai/dsh-tool-goal</code> frontend and mounts
+  Chapter 6 already replaced the model-facing goal row. The native goal <em>service</em>, projection,
+  and session driver remain host-side. The preset disables only the inferred-intent
+  <code>@deepseek-ai/dsh-tool-goal</code> frontend and mounts
   <code>dsh-supervisor/goal</code>. Its <code>start_goal</code> writes a canonical GOAL.md and
   immediately calls the native service from a direct-human turn after <code>get_goal</code>.
   It then returns control to the same model turn. The web UI still renders the current goal for the session. That
@@ -227,13 +218,12 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
 </div>
 
 <h2>Validate, then run goal setup</h2>
-<p>Persona edits are composition edits — validate like chapter 6 (ask your Creator session to re-run
-<code>standingKeyFor('main-agent')</code>), then open a <strong>fresh</strong> session on
-<code>main-agent</code> in <code>/root/agi-lab</code>.</p>
+<p>The installed preset was already mount-tested in chapter 6. Open a <strong>fresh</strong> session on
+<code>main-agent</code> in <code>$HOME/agi-lab</code>.</p>
 
 <div class="box test">
   <span class="box-title">Test it live — milestone 2 acceptance: non-blocking goal setup</span>
-  <p><strong>Auto-grade after the script:</strong> <code>python3 /root/dev/tests/grade.py m2</code> — verifies the
+  <p><strong>Auto-grade after the script:</strong> <code>python3 $HOME/src/dsh-supervisor/tests/grade.py m2</code> — verifies the
      <code>.agi/</code> skeleton, every protocol marker in your persona, GOAL.md, the
      <code>start_goal</code> call, JSONL validity, and amendment discipline.</p>
   <p>Drive this script as the user, in a fresh <code>main-agent</code> session:</p>
@@ -245,10 +235,10 @@ python3 -c "import json; json.load(open('config.json'))" &amp;&amp; echo OK</cod
         or handled with a safe reversible assumption.</li>
     <li><strong>Grounding check:</strong> mid-interview, ask <em>“how big is that docs folder, anyway?”</em>
         <strong>Expect:</strong> it runs a quick read itself (an <code>ls</code>/count under
-        <code>/root/deepseek-harness/docs</code>) and answers with facts — it must not ask you, guess, or
+        <code>$HOME/src/deepseek-harness/docs</code>) and answers with facts — it must not ask you, guess, or
         spawn a worker for a 30-second question. Discoverable facts are its own job (GROUNDING).</li>
     <li><strong>Expect:</strong> <code>start_goal</code> writes
-        <code>/root/agi-lab/.agi/GOAL.md</code>, records the native goal (visible in the session UI),
+        <code>$HOME/agi-lab/.agi/GOAL.md</code>, records the native goal (visible in the session UI),
         and continues into work in the same turn. No generated confirmation phrase should appear.</li>
     <li><strong>Amendment discipline:</strong> say <em>“actually, also cover the cookbook subfolder.”</em>
         <strong>Expect:</strong> an entry in <code>GOAL_AMENDMENTS.md</code> recording your steering —

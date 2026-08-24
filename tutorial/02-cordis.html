@@ -36,12 +36,12 @@
 </p>
 <p>
   Cordis is the framework that makes this composable. The harness vendors it (a pinned copy lives at
-  <code>/root/deepseek-harness/vendor/cordis/</code>), and its primer condenses the whole thing into five
+  <code>$HOME/src/deepseek-harness/vendor/cordis/</code>), and its primer condenses the whole thing into five
   ideas. Here they are, verbatim from the harness docs, then unpacked one by one:
 </p>
 
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/cordis-primer.md (lines 7–13)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/cordis-primer.md (lines 7–13)</figcaption>
 <pre><code>- A plugin is a object that implements Service. It can be a function with optional
   `inject` and `apply(ctx)` fields, or a `Service` subclass ...
 - A context is a repository of services. A service claims a stable `ctx.&lt;key&gt;` such as
@@ -140,7 +140,7 @@ export function apply(ctx) {
 </p>
 <p>For a real example, the Cordis toolset plugin you’ll use in chapter 5 declares:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/extensions/tool-cordis/src/index.ts (line 28)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/packages/extensions/tool-cordis/src/index.ts (line 28)</figcaption>
 <pre><code>export const inject = ['tools', 'systemPrompt', 'dynamicCordisRunner', 'cordisInspect']</code></pre>
 </figure>
 <p>
@@ -166,7 +166,7 @@ export function apply(ctx) {
   <strong>dispatch mode</strong> — part of its public contract:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/docs/cordis-primer.md (lines 19–24)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/docs/cordis-primer.md (lines 19–24)</figcaption>
 <pre><code>| Mode      | Awaited? | Dispatch Order                        | Has Return Value? |
 |-----------|----------|---------------------------------------|-------------------|
 | emit      | No       | listeners observe in registration order| No                |
@@ -237,17 +237,17 @@ export function apply(ctx) {
   your profile’s patch file while sessions run, and nothing leaks. The repo states the convention as
   a hard rule: “Registrations are effects: every contribution goes through <code>ctx.effect()</code> /
   <code>ctx.on()</code>; a registry’s <code>register()</code> returns the disposer”
-  (<code>/root/deepseek-harness/AGENTS.md</code>, Conventions).
+  (<code>$HOME/src/deepseek-harness/AGENTS.md</code>, Conventions).
 </p>
 
 <h2>Composition: plugins are mounted from YAML</h2>
 <p>
   So far, plugins in isolation. Who decides which plugins run? In this harness: <strong>configuration
   files, not code</strong>. A <code>cordis.yml</code> is a list of <em>rows</em>, each naming a plugin package and
-  its config. Here are two real rows from the preset you will copy in chapter 6:
+  its config. Here are two real rows from the standard preset on which the packaged supervisor is based:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 24–33, 44–46)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 24–33, 44–46)</figcaption>
 <pre><code>- id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
@@ -282,7 +282,7 @@ export function apply(ctx) {
 
 <h2>Groups and isolate realms (the collision rule, previewed)</h2>
 <p>
-  One more composition construct you will see in chapter 6: rows can be nested in a
+  One more composition construct you will inspect in chapter 6: rows can be nested in a
   <strong>group</strong>, and a group can carry an <code>isolate</code> realm. Why: some plugins <em>provide a
   service</em>, and a service key registers once per realm. If a preset row provided a service into the
   global realm, the <em>second</em> session mounting that preset would collide with the first. So a preset
@@ -291,7 +291,7 @@ export function apply(ctx) {
   workflow engine:
 </p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 174–179)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/apps/cli/config/agent-presets/standard/agent.cordis.yml (lines 174–179)</figcaption>
 <pre><code>- id: delegation
   name: cordis:group
   group: true
@@ -303,16 +303,16 @@ export function apply(ctx) {
     # ... more rows ...</code></pre>
 </figure>
 <p>
-  You do not need to design realms in this course — you inherit correct ones by copying
-  <code>standard</code>. But you must recognize the pattern, because the mount validator will name it when
+  You do not need to design realms in this course — the packaged preset preserves the correct groups
+  inherited from <code>standard</code>. But you must recognize the pattern, because the mount validator names it when
   something is wrong (“a preset service must sit behind an isolate realm or move to the host
-  composition”), and chapter 6 teaches you to read that rejection.
+  composition”), and chapter 6 verifies that two sessions mount without a realm collision.
 </p>
 
 <h2>What you now know how to read</h2>
 <p>Test yourself on this real row from the base host composition — the one that will spawn your workers:</p>
 <figure class="code">
-<figcaption><span class="badge cite">CITED</span>/root/deepseek-harness/packages/bundle/base/cordis.patch.yml (lines 313–318)</figcaption>
+<figcaption><span class="badge cite">CITED</span>$HOME/src/deepseek-harness/packages/bundle/base/cordis.patch.yml (lines 313–318)</figcaption>
 <pre><code>- id: tool-subagent
   name: '@deepseek-ai/dsh-tool-subagent'
   config:
@@ -345,9 +345,9 @@ export function apply(ctx) {
 
 <h2>Where to go deeper (optional)</h2>
 <ul>
-  <li><code>/root/deepseek-harness/docs/cordis-primer.md</code> — the five ideas, dispatch table, loader config.</li>
-  <li><code>/root/deepseek-harness/docs/cordis-tutorial/index.md</code> — the framework’s own hands-on walk.</li>
-  <li><code>/root/deepseek-harness/vendor/cordis/README.md</code> — the vendored framework’s package map.</li>
+  <li><code>$HOME/src/deepseek-harness/docs/cordis-primer.md</code> — the five ideas, dispatch table, loader config.</li>
+  <li><code>$HOME/src/deepseek-harness/docs/cordis-tutorial/index.md</code> — the framework’s own hands-on walk.</li>
+  <li><code>$HOME/src/deepseek-harness/vendor/cordis/README.md</code> — the vendored framework’s package map.</li>
 </ul>
 
 <nav class="pager">
