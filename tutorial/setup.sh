@@ -38,7 +38,9 @@ if [ ! -x "$venv_dir/bin/python" ] || ! "$venv_dir/bin/python" -m pip --version 
 fi
 
 echo "Installing grader dependencies into $venv_dir ..."
-"$venv_dir/bin/python" -m pip install --disable-pip-version-check \
+# Ignore machine-level pip settings such as `user = true`; --user installs are
+# invalid inside a virtual environment and would make the course non-portable.
+"$venv_dir/bin/python" -m pip --isolated install --no-user --disable-pip-version-check \
   --requirement "$tutorial_dir/requirements.txt"
 
 echo "Starting the tutorial on an unused localhost port..."
